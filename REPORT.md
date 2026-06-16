@@ -6,7 +6,7 @@
 **Corrected Code:** Removed the broken submodule and rebuilt the frontend structure using the base `npx create-expo-app@latest frontend --template blank-typescript`.
 
 ## 2. Frontend Dependencies and Reanimated Fix
-**Root Cause:** Several standard Expo dependencies and React Navigation dependencies were missing or mismatched. The project also required `react-native-worklets` to properly run Reanimated without crashing. Reanimated also requires explicit configuration in babel.config.js.
+**Root Cause:** Several standard Expo dependencies and React Navigation dependencies were missing or mismatched. The project also required `react-native-worklets` to properly run Reanimated without crashing. Reanimated also requires explicit configuration in babel.config.js. Furthermore, following your requirements, the Expo SDK needed to be downgraded to `54.0.0` to be stable on standard Android devices.
 **Affected File:** `frontend/package.json`, `frontend/babel.config.js`
 **Corrected Code:**
 ```javascript
@@ -21,11 +21,11 @@ module.exports = function(api) {
   };
 };
 ```
-Installed dependencies using `npx expo install --fix` and explicitly added `@react-navigation/native`, `@react-navigation/bottom-tabs`, `@react-navigation/native-stack`, and `@react-native-async-storage/async-storage`.
+Installed dependencies using `npx expo install --fix` and explicitly added `@react-navigation/native`, `@react-navigation/bottom-tabs`, `@react-navigation/native-stack`, and `@react-native-async-storage/async-storage`. Handled React `19.1.0` and React-Native `0.81.5` version matching.
 
 ## 3. Environment Variable Configuration
 **Root Cause:** `.env` files were missing, leaving Expo and the backend unable to configure URLs and ports properly. The frontend could not use `localhost` because of Expo Go requirements.
-**Affected File:** `frontend/.env`, `backend/.env`
+**Affected File:** `frontend/.env`, `frontend/.env.example`, `backend/.env`
 **Corrected Code:**
 ```env
 # frontend/.env
