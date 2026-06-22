@@ -1,7 +1,8 @@
 const { createClient } = require('@supabase/supabase-js');
 const dotenv = require('dotenv');
+const path = require('path');
 
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const supabaseUrl = process.env.SUPABASE_URL;
 // Use service_role key on the backend to bypass Row Level Security (RLS)
@@ -24,4 +25,3 @@ module.exports = {
   supabase,
   isConfigured: () => !!supabase
 };
-

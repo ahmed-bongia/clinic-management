@@ -3,10 +3,12 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const dotenv = require('dotenv');
+const path = require('path');
 
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 const authRoutes = require('./routes/authRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 const userRoutes = require('./routes/userRoutes');
 const patientRoutes = require('./routes/patientRoutes');
 const doctorRoutes = require('./routes/doctorRoutes');
@@ -41,6 +43,7 @@ app.get('/api', (req, res) => {
     message: 'Hospital & Clinic Management System API',
     endpoints: {
       auth: '/api/auth',
+      admin: '/api/admin',
       users: '/api/users',
       doctors: '/api/doctors',
       patients: '/api/patients',
@@ -54,6 +57,7 @@ app.get('/api', (req, res) => {
 
 // Route Mountings
 app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/patients', patientRoutes);
 app.use('/api/doctors', doctorRoutes);

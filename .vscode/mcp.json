@@ -1,0 +1,8 @@
+{
+  "servers": {
+    "clinic-management Docs": {
+      "type": "sse",
+      "url": "https://gitmcp.io/ahmed-bongia/clinic-management"
+    }
+  }
+}

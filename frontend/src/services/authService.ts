@@ -6,6 +6,7 @@ export interface User {
   name: string;
   role: 'Admin' | 'Doctor' | 'Patient' | 'Receptionist' | 'Pharmacist' | 'Laboratory Staff';
   email: string;
+  is_active?: boolean;
 }
 
 export interface LoginResponse {
@@ -59,6 +60,34 @@ export const getCurrentUser = async (): Promise<User | null> => {
     return userStr ? JSON.parse(userStr) : null;
   } catch (error) {
     return null;
+  }
+};
+
+export const getCurrentUserProfile = async (): Promise<User | null> => {
+  try {
+    const response = await api.get('/auth/me');
+    const user = response.data.data?.user;
+    if (user) {
+      await AsyncStorage.setItem('user_info', JSON.stringify(user));
+    }
+    return user || null;
+  } catch (error: any) {
+    console.error('[Auth Service] Profile fetch error:', error.response?.data || error.message);
+    return getCurrentUser();
+  }
+};
+
+export const changePassword = async (payload: {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}): Promise<{ success: boolean; message: string }> => {
+  try {
+    const response = await api.patch('/auth/change-password', payload);
+    return { success: true, message: response.data.message || 'Password changed successfully.' };
+  } catch (error: any) {
+    console.error('[Auth Service] Change password error:', error.response?.data || error.message);
+    return { success: false, message: error.response?.data?.message || 'Unable to change password.' };
   }
 };
 

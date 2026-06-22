@@ -1,7 +1,19 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { logout } from '../../services/authService';
+import { changePassword as changeOwnPassword, getCurrentUserProfile, logout } from '../../services/authService';
+import {
+  ActiveStaff,
+  AdminDashboardSummary,
+  AdminUser,
+  createAdminUser,
+  getActiveStaff,
+  getAdminDashboardSummary,
+  getAdminUsers,
+  resetAdminUserPassword,
+  updateAdminUser,
+  updateAdminUserStatus,
+} from '../../services/adminService';
 import {
   ActionCard,
   ChartCard,
@@ -27,6 +39,8 @@ import {
   reports,
   roleProfiles,
 } from '../../ui/clinicData';
+
+const adminRoles: Role[] = ['Admin', 'Doctor', 'Patient', 'Receptionist', 'Pharmacist', 'Laboratory Staff'];
 
 function getRole(route: any): Role {
   return route?.params?.user?.role || 'Patient';
@@ -54,26 +68,83 @@ export function RoleDashboardScreen({ navigation, route }: any) {
 }
 
 function AdminDashboard({ navigation }: any) {
+  const [dashboard, setDashboard] = useState<AdminDashboardSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const loadDashboard = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const data = await getAdminDashboardSummary();
+      setDashboard(data);
+    } catch (loadError: any) {
+      console.error('[Admin Dashboard] Unable to load dashboard metrics:', {
+        message: loadError.message,
+        status: loadError.response?.status,
+        data: loadError.response?.data,
+      });
+      setDashboard(null);
+      setError(loadError.response?.data?.message || 'Unable to load dashboard metrics.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDashboard();
+  }, []);
+
+  const cards = dashboard?.cards;
+  const summary = dashboard?.summary;
+  const formatCount = (value?: number) => (value === undefined ? '-' : value.toLocaleString());
+  const summaryRows = [
+    ['Active Staff', `${formatCount(summary?.activeStaff)} staff currently active`, 'pulse-outline', colors.green],
+    ['Waiting Patients', `${formatCount(summary?.waitingPatients)} patients currently checked in`, 'time-outline', colors.orange],
+    ['Completed Appointments', `${formatCount(summary?.completedAppointments)} visits completed today`, 'checkmark-done-outline', colors.teal],
+    ['System Status', `All services ${summary?.systemStatus?.toLowerCase() || 'unavailable'}`, 'shield-checkmark-outline', colors.blue],
+  ];
+
   return (
     <Screen>
       <Content>
         <Header title="Admin Portal" subtitle="System Overview" navigation={navigation} />
+        {loading ? (
+          <View style={local.stateCard}>
+            <ActivityIndicator color={colors.teal} />
+            <Text style={local.stateText}>Loading dashboard metrics...</Text>
+          </View>
+        ) : null}
+        {error ? (
+          <TouchableOpacity activeOpacity={0.82} style={local.stateCard} onPress={loadDashboard}>
+            <Ionicons name="alert-circle-outline" size={22} color={colors.red} />
+            <Text style={local.stateText}>{error}</Text>
+            <Text style={local.retryText}>Tap to retry</Text>
+          </TouchableOpacity>
+        ) : null}
         {grid(
           <>
-            <StatCard icon="people-outline" value="1,248" label="Total Patients" tone={colors.teal} />
-            <StatCard icon="medical-outline" value="42" label="Total Doctors" tone={colors.blue} />
-            <StatCard icon="calendar-outline" value="156" label="Today's Appts" tone={colors.orange} />
-            <StatCard icon="receipt-outline" value="24" label="Pending Bills" tone={colors.red} />
+            <StatCard icon="people-outline" value={formatCount(cards?.totalPatients)} label="Total Patients" tone={colors.teal} />
+            <StatCard icon="medical-outline" value={formatCount(cards?.totalDoctors)} label="Total Doctors" tone={colors.blue} />
+            <StatCard icon="calendar-outline" value={formatCount(cards?.todaysAppointments)} label="Today's Appts" tone={colors.orange} />
+            <StatCard icon="receipt-outline" value={formatCount(cards?.pendingBills)} label="Pending Bills" tone={colors.red} />
           </>,
         )}
         <SectionHeader title="Today's Summary" />
-        {[
-          ['Active Staff', '78 clinicians and operators online', 'pulse-outline', colors.green],
-          ['Waiting Patients', '14 patients currently checked in', 'time-outline', colors.orange],
-          ['Completed Appointments', '92 visits completed today', 'checkmark-done-outline', colors.teal],
-          ['System Status', 'All services operational', 'shield-checkmark-outline', colors.blue],
-        ].map(([title, subtitle, icon, tone]) => (
-          <ListRow key={title} title={title} subtitle={subtitle} icon={icon} tone={tone} onPress={() => navigation.navigate('ModuleDetail', { title, role: 'Admin' })} />
+        {!loading && !error && !dashboard ? (
+          <View style={local.stateCard}>
+            <Text style={local.stateText}>No dashboard metrics available.</Text>
+          </View>
+        ) : null}
+        {summaryRows.map(([title, subtitle, icon, tone]) => (
+          <ListRow
+            key={title}
+            title={title}
+            subtitle={subtitle}
+            icon={icon}
+            tone={tone}
+            onPress={() => title === 'Active Staff' ? navigation.getParent()?.navigate('ActiveStaff') : navigation.navigate('ModuleDetail', { title, role: 'Admin' })}
+          />
         ))}
       </Content>
     </Screen>
@@ -268,12 +339,231 @@ export function RoleListScreen({ navigation, route }: any) {
 
 export function ManagementScreen({ navigation, route }: any) {
   const role = getRole(route);
+  const openModule = (title: string) => {
+    if (title === 'User Management') {
+      navigation.getParent()?.navigate('AdminUsers');
+      return;
+    }
+    navigation.navigate('ModuleDetail', { title, role });
+  };
   return (
     <Screen>
       <Content>
         <Header title="Management" subtitle="Clinic control center" navigation={navigation} />
         {adminModules.map((title, index) => (
-          <ListRow key={title} title={title} subtitle="Open dashboard, review records, and coordinate workflows." icon={['person-add-outline', 'people-outline', 'medical-outline', 'calendar-outline', 'card-outline', 'medkit-outline', 'flask-outline', 'analytics-outline'][index]} tone={[colors.purple, colors.teal, colors.blue, colors.orange, colors.blue, colors.green, colors.red, colors.teal][index]} onPress={() => navigation.navigate('ModuleDetail', { title, role })} />
+          <ListRow key={title} title={title} subtitle="Open dashboard, review records, and coordinate workflows." icon={['person-add-outline', 'people-outline', 'medical-outline', 'calendar-outline', 'card-outline', 'medkit-outline', 'flask-outline', 'analytics-outline'][index]} tone={[colors.purple, colors.teal, colors.blue, colors.orange, colors.blue, colors.green, colors.red, colors.teal][index]} onPress={() => openModule(title)} />
+        ))}
+      </Content>
+    </Screen>
+  );
+}
+
+export function AdminUsersScreen({ navigation }: any) {
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('All');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<Role>('Patient');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+  const [isError, setIsError] = useState(false);
+
+  const loadUsers = async () => {
+    try {
+      setLoading(true);
+      setMessage('');
+      const data = await getAdminUsers({ search, role: roleFilter === 'All' ? undefined : roleFilter });
+      setUsers(data);
+    } catch (error: any) {
+      console.error('[Admin Users] Load error:', error.response?.data || error.message);
+      setIsError(true);
+      setMessage(error.response?.data?.message || 'Unable to load users.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadUsers();
+  }, [roleFilter]);
+
+  const edit = (user: AdminUser) => {
+    setSelectedUser(user);
+    setName(user.name);
+    setEmail(user.email);
+    setRole(user.role);
+    setPassword('');
+    setMessage('');
+  };
+
+  const clearForm = () => {
+    setSelectedUser(null);
+    setName('');
+    setEmail('');
+    setRole('Patient');
+    setPassword('');
+  };
+
+  const saveUser = async () => {
+    try {
+      setSaving(true);
+      setMessage('');
+      if (selectedUser) {
+        await updateAdminUser(selectedUser.id, { name, email, role });
+      } else {
+        await createAdminUser({ name, email, role, password });
+      }
+      setIsError(false);
+      setMessage(selectedUser ? 'User updated.' : 'User created.');
+      clearForm();
+      await loadUsers();
+    } catch (error: any) {
+      setIsError(true);
+      setMessage(error.response?.data?.message || 'Unable to save user.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleStatus = async (user: AdminUser) => {
+    try {
+      await updateAdminUserStatus(user.id, !user.is_active);
+      await loadUsers();
+    } catch (error: any) {
+      setIsError(true);
+      setMessage(error.response?.data?.message || 'Unable to update user status.');
+    }
+  };
+
+  const resetPassword = async () => {
+    if (!selectedUser) return;
+    try {
+      setSaving(true);
+      await resetAdminUserPassword(selectedUser.id, password);
+      setIsError(false);
+      setMessage('Password reset.');
+      setPassword('');
+    } catch (error: any) {
+      setIsError(true);
+      setMessage(error.response?.data?.message || 'Unable to reset password.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Screen>
+      <Content>
+        <Header title="User Management" subtitle="Admin controls" navigation={navigation} />
+        <View style={local.formCard}>
+          <TextInput placeholder="Search users" placeholderTextColor="#8b97a8" value={search} onChangeText={setSearch} onSubmitEditing={loadUsers} style={local.input} />
+          <View style={local.chipRow}>
+            {['All', ...adminRoles].map((item) => (
+              <TouchableOpacity key={item} style={[local.chip, roleFilter === item && local.chipActive]} onPress={() => setRoleFilter(item)}>
+                <Text style={[local.chipText, roleFilter === item && local.chipTextActive]}>{item}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TouchableOpacity activeOpacity={0.82} style={local.secondaryButton} onPress={loadUsers}>
+            <Text style={local.secondaryButtonText}>Search / Refresh</Text>
+          </TouchableOpacity>
+        </View>
+
+        <SectionHeader title={selectedUser ? 'Edit User' : 'Add User'} action={selectedUser ? 'Clear' : undefined} onPress={clearForm} />
+        <View style={local.formCard}>
+          <TextInput placeholder="Name" placeholderTextColor="#8b97a8" value={name} onChangeText={setName} style={local.input} />
+          <TextInput placeholder="Email" placeholderTextColor="#8b97a8" autoCapitalize="none" value={email} onChangeText={setEmail} style={local.input} />
+          <View style={local.chipRow}>
+            {adminRoles.map((item) => (
+              <TouchableOpacity key={item} style={[local.chip, role === item && local.chipActive]} onPress={() => setRole(item)}>
+                <Text style={[local.chipText, role === item && local.chipTextActive]}>{item}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TextInput secureTextEntry placeholder={selectedUser ? 'New password for reset' : 'Password'} placeholderTextColor="#8b97a8" value={password} onChangeText={setPassword} style={local.input} />
+          {message ? <Text style={isError ? local.errorText : local.successText}>{message}</Text> : null}
+          <TouchableOpacity activeOpacity={0.82} style={local.secondaryButton} onPress={saveUser} disabled={saving}>
+            <Text style={local.secondaryButtonText}>{saving ? 'Saving...' : selectedUser ? 'Save User' : 'Create User'}</Text>
+          </TouchableOpacity>
+          {selectedUser ? (
+            <TouchableOpacity activeOpacity={0.82} style={local.outlineButton} onPress={resetPassword} disabled={saving}>
+              <Text style={local.outlineButtonText}>Reset Password</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+
+        <SectionHeader title="Users" />
+        {loading ? <ActivityIndicator color={colors.teal} /> : null}
+        {!loading && users.length === 0 ? <Text style={local.stateText}>No users found.</Text> : null}
+        {users.map((user) => (
+          <ListRow
+            key={user.id}
+            title={user.name}
+            subtitle={`${user.role} - ${user.email}`}
+            status={user.is_active ? 'Active' : 'Inactive'}
+            tone={user.is_active ? colors.green : colors.red}
+            icon="person-outline"
+            onPress={() => edit(user)}
+          />
+        ))}
+        {selectedUser ? (
+          <TouchableOpacity activeOpacity={0.82} style={local.outlineButton} onPress={() => toggleStatus(selectedUser)}>
+            <Text style={local.outlineButtonText}>{selectedUser.is_active ? 'Deactivate Selected User' : 'Activate Selected User'}</Text>
+          </TouchableOpacity>
+        ) : null}
+      </Content>
+    </Screen>
+  );
+}
+
+export function ActiveStaffScreen({ navigation }: any) {
+  const [staff, setStaff] = useState<ActiveStaff[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const loadStaff = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      setStaff(await getActiveStaff());
+    } catch (loadError: any) {
+      console.error('[Active Staff] Load error:', loadError.response?.data || loadError.message);
+      setError(loadError.response?.data?.message || 'Unable to load active staff.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadStaff();
+  }, []);
+
+  return (
+    <Screen>
+      <Content>
+        <Header title="Active Staff" subtitle="Real-time staff availability" navigation={navigation} />
+        {loading ? <ActivityIndicator color={colors.teal} /> : null}
+        {error ? (
+          <TouchableOpacity activeOpacity={0.82} style={local.stateCard} onPress={loadStaff}>
+            <Text style={local.errorText}>{error}</Text>
+            <Text style={local.retryText}>Tap to retry</Text>
+          </TouchableOpacity>
+        ) : null}
+        {!loading && !error && staff.length === 0 ? <Text style={local.stateText}>No active staff found.</Text> : null}
+        {staff.map((member) => (
+          <ListRow
+            key={member.id}
+            title={member.name}
+            subtitle={`${member.role} - ${member.email}`}
+            meta={`Status: ${member.is_active ? 'Active' : 'Inactive'}`}
+            status={member.availability}
+            tone={member.availability === 'Busy' ? colors.orange : member.availability === 'Unavailable' ? colors.red : colors.green}
+            icon="pulse-outline"
+          />
         ))}
       </Content>
     </Screen>
@@ -308,8 +598,25 @@ export function NotificationsScreen({ navigation }: any) {
 
 export function ProfileScreen({ navigation, route }: any) {
   const role = getRole(route);
-  const user = route?.params?.user || roleProfiles[role];
-  const profile = { ...roleProfiles[role], ...user };
+  const [profile, setProfile] = useState<any>({ ...roleProfiles[role], ...(route?.params?.user || {}) });
+  const [loadingProfile, setLoadingProfile] = useState(false);
+  const [profileError, setProfileError] = useState('');
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      setLoadingProfile(true);
+      setProfileError('');
+      const current = await getCurrentUserProfile();
+      if (current) {
+        setProfile({ ...roleProfiles[current.role], ...current });
+      } else {
+        setProfileError('Unable to load profile.');
+      }
+      setLoadingProfile(false);
+    };
+    loadProfile();
+  }, []);
+
   const handleLogout = async () => {
     await logout();
     navigation.getParent()?.reset({ index: 0, routes: [{ name: 'Login' }] });
@@ -322,19 +629,116 @@ export function ProfileScreen({ navigation, route }: any) {
           <View style={local.profileAvatar}>
             <Text style={local.profileInitials}>{profile.name?.split(' ').map((part: string) => part[0]).slice(0, 2).join('')}</Text>
           </View>
+          {loadingProfile ? <ActivityIndicator color={colors.teal} /> : null}
+          {profileError ? <Text style={local.errorText}>{profileError}</Text> : null}
           <Text style={local.profileName}>{profile.name}</Text>
           <Text style={local.profileMeta}>{profile.email}</Text>
-          <Text style={local.profileMeta}>{profile.phone}</Text>
+          <Text style={local.profileMeta}>{profile.role} - {profile.is_active === false ? 'Inactive' : 'Active'}</Text>
         </View>
-        <ListRow title="Profile Information" subtitle={`${profile.department} - ${role}`} icon="person-outline" tone={colors.teal} />
-        <ListRow title="Change Password" subtitle="Update your login credentials" icon="lock-closed-outline" tone={colors.blue} />
-        <ListRow title="Notification Settings" subtitle="Push, SMS, and email preferences" icon="notifications-outline" tone={colors.orange} />
-        <ListRow title="App Settings" subtitle="Language, display, and privacy" icon="settings-outline" tone={colors.purple} />
-        <ListRow title="Help & Support" subtitle="Contact support or view help topics" icon="help-circle-outline" tone={colors.green} />
+        <ListRow title="Profile Information" subtitle={`${profile.department} - ${profile.role || role}`} icon="person-outline" tone={colors.teal} onPress={() => navigation.getParent()?.navigate('ProfileInformation', { profile, role: profile.role || role })} />
+        <ListRow title="Change Password" subtitle="Update your login credentials" icon="lock-closed-outline" tone={colors.blue} onPress={() => navigation.getParent()?.navigate('ChangePassword', { profile, role })} />
+        <ListRow title="Notification Settings" subtitle="Push, SMS, and email preferences" icon="notifications-outline" tone={colors.orange} onPress={() => navigation.getParent()?.navigate('NotificationSettings', { profile, role })} />
+        <ListRow title="App Settings" subtitle="Language, display, and privacy" icon="settings-outline" tone={colors.purple} onPress={() => navigation.getParent()?.navigate('AppSettings', { profile, role })} />
+        <ListRow title="Help & Support" subtitle="Contact support or view help topics" icon="help-circle-outline" tone={colors.green} onPress={() => navigation.getParent()?.navigate('HelpSupport', { profile, role })} />
         <TouchableOpacity style={local.logoutButton} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={20} color="#ffffff" />
           <Text style={local.logoutText}>Logout</Text>
         </TouchableOpacity>
+      </Content>
+    </Screen>
+  );
+}
+
+export function ProfileInformationScreen({ navigation, route }: any) {
+  const profile = route.params?.profile || {};
+  const role = route.params?.role || 'Admin';
+  return (
+    <Screen>
+      <Content>
+        <Header title="Profile Information" subtitle={`${profile.department || 'Operations'} - ${role}`} navigation={navigation} />
+        <ListRow title="Name" subtitle={profile.name || 'Not available'} icon="person-outline" tone={colors.teal} />
+        <ListRow title="Email" subtitle={profile.email || 'Not available'} icon="mail-outline" tone={colors.blue} />
+        <ListRow title="Phone" subtitle={profile.phone || 'Not available'} icon="call-outline" tone={colors.green} />
+        <ListRow title="Role" subtitle={role} icon="shield-checkmark-outline" tone={colors.purple} />
+      </Content>
+    </Screen>
+  );
+}
+
+export function ChangePasswordScreen({ navigation }: any) {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+  const [isError, setIsError] = useState(false);
+
+  const submit = async () => {
+    setSaving(true);
+    setMessage('');
+    const result = await changeOwnPassword({ currentPassword, newPassword, confirmPassword });
+    setIsError(!result.success);
+    setMessage(result.message);
+    if (result.success) {
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    }
+    setSaving(false);
+  };
+
+  return (
+    <Screen>
+      <Content>
+        <Header title="Change Password" subtitle="Update your login credentials" navigation={navigation} />
+        <View style={local.formCard}>
+          <TextInput secureTextEntry placeholder="Current password" placeholderTextColor="#8b97a8" value={currentPassword} onChangeText={setCurrentPassword} style={local.input} />
+          <TextInput secureTextEntry placeholder="New password" placeholderTextColor="#8b97a8" value={newPassword} onChangeText={setNewPassword} style={local.input} />
+          <TextInput secureTextEntry placeholder="Confirm new password" placeholderTextColor="#8b97a8" value={confirmPassword} onChangeText={setConfirmPassword} style={local.input} />
+          {message ? <Text style={isError ? local.errorText : local.successText}>{message}</Text> : null}
+          <TouchableOpacity activeOpacity={0.82} style={local.secondaryButton} onPress={submit} disabled={saving}>
+            <Text style={local.secondaryButtonText}>{saving ? 'Saving...' : 'Save Password'}</Text>
+          </TouchableOpacity>
+        </View>
+      </Content>
+    </Screen>
+  );
+}
+
+export function NotificationSettingsScreen({ navigation }: any) {
+  return (
+    <Screen>
+      <Content>
+        <Header title="Notification Settings" subtitle="Push, SMS, and email preferences" navigation={navigation} />
+        <ListRow title="Push Notifications" subtitle="Enabled for account alerts" icon="phone-portrait-outline" tone={colors.teal} />
+        <ListRow title="Email Notifications" subtitle="Enabled for reports and billing updates" icon="mail-outline" tone={colors.blue} />
+        <ListRow title="SMS Notifications" subtitle="Enabled for urgent operational alerts" icon="chatbubble-outline" tone={colors.orange} />
+      </Content>
+    </Screen>
+  );
+}
+
+export function AppSettingsScreen({ navigation }: any) {
+  return (
+    <Screen>
+      <Content>
+        <Header title="App Settings" subtitle="Language, display, and privacy" navigation={navigation} />
+        <ListRow title="Language" subtitle="English" icon="language-outline" tone={colors.teal} />
+        <ListRow title="Display" subtitle="System default" icon="contrast-outline" tone={colors.blue} />
+        <ListRow title="Privacy" subtitle="Admin session security enabled" icon="lock-closed-outline" tone={colors.purple} />
+      </Content>
+    </Screen>
+  );
+}
+
+export function HelpSupportScreen({ navigation }: any) {
+  return (
+    <Screen>
+      <Content>
+        <Header title="Help & Support" subtitle="Contact support or view help topics" navigation={navigation} />
+        <ListRow title="Support Desk" subtitle="support@clinic.local" icon="help-circle-outline" tone={colors.green} />
+        <ListRow title="System Guide" subtitle="Admin workflow documentation" icon="book-outline" tone={colors.blue} />
+        <ListRow title="Report an Issue" subtitle="Send details to the operations team" icon="bug-outline" tone={colors.red} />
       </Content>
     </Screen>
   );
@@ -364,6 +768,109 @@ const local = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+  },
+  stateCard: {
+    minHeight: 64,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: colors.line,
+    marginBottom: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  stateText: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  retryText: {
+    color: colors.teal,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  errorText: {
+    color: colors.red,
+    fontSize: 12,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  successText: {
+    color: colors.green,
+    fontSize: 12,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  formCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.line,
+    gap: 12,
+  },
+  input: {
+    minHeight: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.line,
+    paddingHorizontal: 14,
+    color: colors.ink,
+    backgroundColor: colors.surface,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  chip: {
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    backgroundColor: colors.faint,
+  },
+  chipActive: {
+    backgroundColor: colors.teal,
+  },
+  chipText: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  chipTextActive: {
+    color: '#ffffff',
+  },
+  secondaryButton: {
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: colors.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryButtonText: {
+    color: '#ffffff',
+    fontWeight: '900',
+    fontSize: 15,
+  },
+  outlineButton: {
+    minHeight: 48,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    marginTop: 10,
+    backgroundColor: colors.surface,
+  },
+  outlineButtonText: {
+    color: colors.ink,
+    fontWeight: '900',
+    fontSize: 14,
   },
   alert: {
     flexDirection: 'row',

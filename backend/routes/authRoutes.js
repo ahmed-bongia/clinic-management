@@ -1,6 +1,6 @@
 const express = require('express');
 const { body } = require('express-validator');
-const { login, register, getCurrentUser } = require('../controllers/authController');
+const { login, register, getCurrentUser, changePassword } = require('../controllers/authController');
 const authMiddleware = require('../middleware/authMiddleware');
 const validationMiddleware = require('../middleware/validationMiddleware');
 
@@ -45,6 +45,6 @@ router.post(
  * @access Private
  */
 router.get('/me', authMiddleware, getCurrentUser);
+router.patch('/change-password', authMiddleware, changePassword);
 
 module.exports = router;
-

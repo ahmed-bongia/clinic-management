@@ -232,8 +232,70 @@ const getCurrentUser = async (req, res, next) => {
   }
 };
 
+const changePassword = async (req, res, next) => {
+  try {
+    if (!supabase) {
+      return errorResponse(res, 'Database is not configured.', 503);
+    }
+
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      return errorResponse(res, 'Current password, new password, and confirmation are required.', 400);
+    }
+    if (newPassword.length < 6) {
+      return errorResponse(res, 'New password must be at least 6 characters.', 400);
+    }
+    if (newPassword !== confirmPassword) {
+      return errorResponse(res, 'New password and confirmation do not match.', 400);
+    }
+
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, password_hash')
+      .eq('id', req.user.id)
+      .eq('is_active', true)
+      .single();
+
+    if (error || !user) {
+      return errorResponse(res, 'User not found or inactive.', 404);
+    }
+
+    const isBcryptHash = user.password_hash.startsWith('$2a$') ||
+                         user.password_hash.startsWith('$2b$') ||
+                         user.password_hash.startsWith('$2y$');
+    const isMatch = isBcryptHash
+      ? await bcrypt.compare(currentPassword, user.password_hash)
+      : currentPassword === user.password_hash;
+
+    if (!isMatch) {
+      return errorResponse(res, 'Current password is incorrect.', 400);
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, await bcrypt.genSalt(12));
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ password_hash: passwordHash, updated_at: new Date().toISOString() })
+      .eq('id', req.user.id);
+
+    if (updateError) {
+      return errorResponse(res, 'Failed to change password.', 500, updateError.message);
+    }
+
+    await supabase.from('audit_logs').insert({
+      user_id: req.user.id,
+      action: 'CHANGE_PASSWORD',
+      table_name: 'users'
+    });
+
+    return successResponse(res, 'Password changed successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   login,
   register,
-  getCurrentUser
+  getCurrentUser,
+  changePassword
 };

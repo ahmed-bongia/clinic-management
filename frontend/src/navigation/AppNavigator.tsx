@@ -11,6 +11,13 @@ import {
   ManagementScreen,
   ModuleDetailScreen,
   NotificationsScreen,
+  ActiveStaffScreen,
+  AdminUsersScreen,
+  AppSettingsScreen,
+  ChangePasswordScreen,
+  HelpSupportScreen,
+  NotificationSettingsScreen,
+  ProfileInformationScreen,
   ProfileScreen,
   ReportsScreen,
   RoleDashboardScreen,
@@ -126,6 +133,13 @@ export default function AppNavigator() {
         <Stack.Screen name="Register" component={RegisterScreen} />
         <Stack.Screen name="MainTabs" component={MainTabNavigator} />
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
+        <Stack.Screen name="AdminUsers" component={AdminUsersScreen} />
+        <Stack.Screen name="ActiveStaff" component={ActiveStaffScreen} />
+        <Stack.Screen name="ProfileInformation" component={ProfileInformationScreen} />
+        <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
+        <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
+        <Stack.Screen name="AppSettings" component={AppSettingsScreen} />
+        <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
         <Stack.Screen name="ModuleDetail" component={ModuleDetailScreen} />
       </Stack.Navigator>
     </NavigationContainer>

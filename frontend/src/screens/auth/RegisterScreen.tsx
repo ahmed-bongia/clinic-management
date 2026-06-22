@@ -13,6 +13,7 @@ import {
   StatusBar,
 } from 'react-native';
 import axios from 'axios';
+import { API_URL } from '../../services/api';
 
 const COLORS = {
   primary: '#0A6EBD',
@@ -99,7 +100,7 @@ export default function RegisterScreen({ navigation }: any) {
     setLoading(true);
     setError('');
     try {
-      const apiUrl = `${process.env.EXPO_PUBLIC_API_URL}/auth/register`;
+      const apiUrl = `${API_URL}/auth/register`;
       console.log('[Register] Sending request to:', apiUrl);
 
       const response = await axios.post(apiUrl, payload);
