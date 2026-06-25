@@ -12,7 +12,8 @@ import {
   colors,
 } from '../ui/ClinicComponents';
 import { Role, roleProfiles } from '../ui/clinicData';
-import { RoleShellConfig, ShellNavigationTarget, roleShellConfig } from './shellConfig';
+import { navigateToShellTarget, warnInvalidShellConfigTargets } from './shellNavigation';
+import { RoleShellConfig, roleShellConfig } from './shellConfig';
 
 type ShellUser = {
   name?: string;
@@ -52,15 +53,7 @@ function formatShellDate(date: Date): string {
   return `${dayNames[date.getDay()]}, ${monthNames[date.getMonth()]} ${date.getDate()}`;
 }
 
-function navigateTo(navigation: any, target?: ShellNavigationTarget) {
-  if (!target) return;
-
-  const rootNavigation = navigation.getParent?.();
-  const selectedNavigation = target.scope === 'root' && rootNavigation ? rootNavigation : navigation;
-  selectedNavigation.navigate(target.name, target.params);
-}
-
-function renderActivityList(config: RoleShellConfig, navigation: any, section: 'todaysActivity' | 'recentActivity') {
+function renderActivityList(config: RoleShellConfig, navigation: any, role: Role, section: 'todaysActivity' | 'recentActivity') {
   return config[section].map((item) => (
     <ListRow
       key={`${section}-${item.title}`}
@@ -70,7 +63,7 @@ function renderActivityList(config: RoleShellConfig, navigation: any, section: '
       meta={item.meta}
       status={item.status}
       tone={item.tone}
-      onPress={item.target ? () => navigateTo(navigation, item.target) : undefined}
+      onPress={item.target ? () => navigateToShellTarget(navigation, role, item.target, `${section}:${item.title}`) : undefined}
     />
   ));
 }
@@ -80,6 +73,8 @@ export default function ApplicationShellScreen({ navigation, route, user }: Appl
   const config = roleShellConfig[role];
   const displayName = getDisplayName(role, user, route);
   const now = new Date();
+
+  warnInvalidShellConfigTargets(role, config);
 
   return (
     <Screen>
@@ -95,7 +90,7 @@ export default function ApplicationShellScreen({ navigation, route, user }: Appl
             accessibilityRole="button"
             accessibilityLabel="Open notifications"
             style={styles.notificationButton}
-            onPress={() => navigateTo(navigation, { name: 'Notifications', scope: 'root' })}
+            onPress={() => navigateToShellTarget(navigation, role, { name: 'Notifications', scope: 'root' }, 'Notification Bell')}
           >
             <Ionicons name="notifications-outline" size={21} color={colors.muted} />
             <View style={styles.notificationDot} />
@@ -121,16 +116,16 @@ export default function ApplicationShellScreen({ navigation, route, user }: Appl
               title={action.title}
               subtitle={action.subtitle}
               tone={action.tone}
-              onPress={action.target ? () => navigateTo(navigation, action.target) : undefined}
+              onPress={action.target ? () => navigateToShellTarget(navigation, role, action.target, `Quick Action:${action.title}`) : undefined}
             />
           ))}
         </View>
 
         <SectionHeader title="Today's Activity" />
-        {renderActivityList(config, navigation, 'todaysActivity')}
+        {renderActivityList(config, navigation, role, 'todaysActivity')}
 
         <SectionHeader title="Recent Activity" />
-        {renderActivityList(config, navigation, 'recentActivity')}
+        {renderActivityList(config, navigation, role, 'recentActivity')}
       </Content>
     </Screen>
   );
@@ -190,4 +185,3 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
 });
-
