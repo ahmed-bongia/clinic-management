@@ -339,7 +339,7 @@ function ReceptionDashboard({ navigation }: any) {
             status={`#${item.queuePosition || '-'}`}
             tone={item.status === 'In Consultation' ? colors.green : colors.orange}
             icon="time-outline"
-            onPress={() => navigation.getParent()?.navigate('ReceptionAppointmentDetail', { appointment: item })}
+            onPress={() => navigation.getParent()?.navigate('AppointmentDetails', { id: item.id, role: 'Receptionist' })}
           />
         ))}
       </Content>
@@ -454,7 +454,7 @@ function DoctorDashboard({ navigation, name }: any) {
             meta={new Date(item.appointment_date).toLocaleString()}
             icon="time-outline"
             tone={item.status === 'Completed' ? colors.green : colors.blue}
-            onPress={() => navigation.getParent()?.navigate('DoctorAppointmentDetail', { id: item.id })}
+            onPress={() => navigation.getParent()?.navigate('AppointmentDetails', { id: item.id, role: 'Doctor' })}
           />
         ))}
         <ListRow title="Completed Today" subtitle={`${metrics?.completedToday ?? '-'} consultations completed`} icon="checkmark-done-outline" tone={colors.green} />
@@ -543,7 +543,7 @@ function PatientDashboard({ navigation, name }: any) {
         <SectionHeader title="Recent Activity" action="See All" onPress={() => navigation.navigate('Records')} />
         {!loading && !error && recentAppointments.length === 0 && recentLabs.length === 0 ? <Text style={local.stateText}>No recent activity yet.</Text> : null}
         {recentAppointments.slice(0, 2).map((item) => (
-          <ListRow key={item.id} title={item.doctors?.name || 'Appointment'} subtitle={item.status} meta={new Date(item.appointment_date).toLocaleString()} icon="calendar-outline" tone={colors.blue} onPress={() => navigation.getParent()?.navigate('PatientAppointmentDetail', { appointment: item })} />
+          <ListRow key={item.id} title={item.doctors?.name || 'Appointment'} subtitle={item.status} meta={new Date(item.appointment_date).toLocaleString()} icon="calendar-outline" tone={colors.blue} onPress={() => navigation.getParent()?.navigate('AppointmentDetails', { id: item.id, role: 'Patient' })} />
         ))}
         {recentLabs.slice(0, 1).map((item) => (
           <ListRow key={item.id} title={item.test_name} subtitle={item.status} meta={item.result || new Date(item.created_at).toLocaleString()} icon="flask-outline" tone={item.status === 'Completed' ? colors.green : colors.red} onPress={() => navigation.getParent()?.navigate('PatientLabResults')} />
@@ -1009,7 +1009,7 @@ export function ReceptionAppointmentsScreen({ navigation }: any) {
             status={item.status}
             icon="calendar-outline"
             tone={item.status === 'Cancelled' ? colors.red : item.status === 'Checked In' ? colors.orange : colors.blue}
-            onPress={() => navigation.getParent()?.navigate('ReceptionAppointmentDetail', { appointment: item })}
+            onPress={() => navigation.getParent()?.navigate('AppointmentDetails', { id: item.id, role: 'Receptionist' })}
           />
         ))}
       </Content>
@@ -1215,7 +1215,7 @@ export function ReceptionWaitingRoomScreen({ navigation }: any) {
         ) : null}
         {!loading && !error && items.length === 0 ? <Text style={local.stateText}>No patients currently waiting.</Text> : null}
         {items.map((item) => (
-          <ListRow key={item.id} title={item.patients?.name || 'Patient'} subtitle={`${item.doctors?.name || 'Doctor'} - ${item.status}`} meta={new Date(item.appointment_date).toLocaleString()} status={`#${item.queuePosition}`} icon="time-outline" tone={item.status === 'In Consultation' ? colors.green : colors.orange} onPress={() => navigation.navigate('ReceptionAppointmentDetail', { appointment: item })} />
+          <ListRow key={item.id} title={item.patients?.name || 'Patient'} subtitle={`${item.doctors?.name || 'Doctor'} - ${item.status}`} meta={new Date(item.appointment_date).toLocaleString()} status={`#${item.queuePosition}`} icon="time-outline" tone={item.status === 'In Consultation' ? colors.green : colors.orange} onPress={() => navigation.navigate('AppointmentDetails', { id: item.id, role: 'Receptionist' })} />
         ))}
       </Content>
     </Screen>
@@ -1452,7 +1452,7 @@ export function PatientAppointmentsScreen({ navigation }: any) {
             status={item.status}
             tone={item.status === 'Completed' ? colors.green : item.status === 'Cancelled' ? colors.red : colors.blue}
             icon="calendar-outline"
-            onPress={() => navigation.getParent()?.navigate('PatientAppointmentDetail', { appointment: item })}
+            onPress={() => navigation.getParent()?.navigate('AppointmentDetails', { id: item.id, role: 'Patient' })}
           />
         ))}
       </Content>
@@ -1652,7 +1652,7 @@ export function PatientRecordsScreen({ navigation }: any) {
         <SectionHeader title="Appointment History" />
         {!loading && !error && records?.appointmentHistory.length === 0 ? <Text style={local.stateText}>No appointment history found.</Text> : null}
         {records?.appointmentHistory.map((item) => (
-          <ListRow key={item.id} title={item.doctors?.name || 'Doctor'} subtitle={item.doctor_notes || item.status} meta={new Date(item.appointment_date).toLocaleString()} status={item.status} icon="calendar-outline" tone={colors.blue} onPress={() => navigation.getParent()?.navigate('PatientAppointmentDetail', { appointment: item })} />
+          <ListRow key={item.id} title={item.doctors?.name || 'Doctor'} subtitle={item.doctor_notes || item.status} meta={new Date(item.appointment_date).toLocaleString()} status={item.status} icon="calendar-outline" tone={colors.blue} onPress={() => navigation.getParent()?.navigate('AppointmentDetails', { id: item.id, role: 'Patient' })} />
         ))}
       </Content>
     </Screen>
@@ -1761,7 +1761,7 @@ export function DoctorAppointmentsScreen({ navigation }: any) {
             status={item.status}
             tone={item.status === 'Completed' ? colors.green : item.status === 'Cancelled' ? colors.red : colors.blue}
             icon="calendar-outline"
-            onPress={() => navigation.getParent()?.navigate('DoctorAppointmentDetail', { id: item.id })}
+            onPress={() => navigation.getParent()?.navigate('AppointmentDetails', { id: item.id, role: 'Doctor' })}
           />
         ))}
       </Content>
