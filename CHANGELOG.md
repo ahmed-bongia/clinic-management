@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-06-26 — Sprint 3.3 appointment detail screen
+
+- Objective: Replace generic appointment detail handling with a dedicated, unified Appointment Details screen.
+- Reason: Consolidate three role-specific detail screens (Doctor, Patient, Receptionist) into a single screen that displays full appointment metadata and role-appropriate actions.
+- Files modified: App navigator, phase1 role screens, shell navigation, and changelog.
+- Files added: Unified AppointmentDetailsScreen.
+- Database changes: None.
+- Backend changes: None.
+- Validation/security improvements: Single source of truth for appointment details with role-gated action buttons (Receptionist: check-in/cancel/reschedule, Patient: cancel, Doctor: view only); fetch uses existing getAppointmentById with loading/error/not-found states.
+- Testing performed: `npx tsc --noEmit`, `node --test` from backend with 0 discovered tests, direct backend JavaScript syntax check with `node --check`, and `git diff --check`.
+
 ## 2026-06-26 — Sprint 3.2 appointment management
 
 - Objective: Provide appointment management for Receptionists, Doctors, and Patients using the existing appointment infrastructure.

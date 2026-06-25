@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
+import AppointmentDetailsScreen from '../screens/appointments/AppointmentDetailsScreen';
 import {
   ManagementScreen,
   ModuleDetailScreen,
@@ -17,16 +18,13 @@ import {
   AppSettingsScreen,
   ChangePasswordScreen,
   HelpSupportScreen,
-  DoctorAppointmentDetailScreen,
   DoctorLabTestsScreen,
   DoctorPatientDetailScreen,
   NotificationSettingsScreen,
-  PatientAppointmentDetailScreen,
   PatientBookAppointmentScreen,
   PatientLabResultsScreen,
   ProfileInformationScreen,
   ProfileScreen,
-  ReceptionAppointmentDetailScreen,
   ReceptionAppointmentFormScreen,
   ReceptionInvoiceFormScreen,
   ReceptionInvoicePaymentScreen,
@@ -181,15 +179,13 @@ export default function AppNavigator() {
             <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
             <Stack.Screen name="AppSettings" component={AppSettingsScreen} />
             <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
-            <Stack.Screen name="DoctorAppointmentDetail" component={DoctorAppointmentDetailScreen} />
+            <Stack.Screen name="AppointmentDetails" component={AppointmentDetailsScreen} />
             <Stack.Screen name="DoctorPatientDetail" component={DoctorPatientDetailScreen} />
             <Stack.Screen name="DoctorLabTests" component={DoctorLabTestsScreen} />
-            <Stack.Screen name="PatientAppointmentDetail" component={PatientAppointmentDetailScreen} />
             <Stack.Screen name="PatientBookAppointment" component={PatientBookAppointmentScreen} />
             <Stack.Screen name="PatientLabResults" component={PatientLabResultsScreen} />
             <Stack.Screen name="ReceptionPatientForm" component={ReceptionPatientFormScreen} />
             <Stack.Screen name="ReceptionAppointmentForm" component={ReceptionAppointmentFormScreen} />
-            <Stack.Screen name="ReceptionAppointmentDetail" component={ReceptionAppointmentDetailScreen} />
             <Stack.Screen name="ReceptionWaitingRoom" component={ReceptionWaitingRoomScreen} />
             <Stack.Screen name="ReceptionInvoiceForm" component={ReceptionInvoiceFormScreen} />
             <Stack.Screen name="ReceptionInvoicePayment" component={ReceptionInvoicePaymentScreen} />
