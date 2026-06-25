@@ -54,7 +54,6 @@ import {
   checkInReceptionAppointment,
   createReceptionAppointment,
   createReceptionInvoice,
-  createReceptionPatient,
   getReceptionAppointments,
   getReceptionDashboard,
   getReceptionInvoices,
@@ -63,11 +62,11 @@ import {
   getReceptionWaitingRoom,
   recordReceptionPayment,
   updateReceptionAppointment,
-  updateReceptionPatient,
   updateReceptionProfile,
 } from '../../services/receptionService';
 import { Medicine, getMedicines } from '../../services/pharmacyService';
 import { LabTestRecord, getLabTests, updateLabTest } from '../../services/labService';
+import { PatientRegistrationPayload, createPatientRecord, updatePatientRecord } from '../../services/patientDirectoryService';
 import ApplicationShellScreen from '../../shell/ApplicationShellScreen';
 import {
   ActionCard,
@@ -715,6 +714,58 @@ const patientFormDefaults = {
   emergency_contact: '',
   insurance_provider: '',
 };
+const patientGenderOptions = ['Male', 'Female', 'Other', 'Unspecified'];
+const patientBloodTypeOptions = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+
+const optionalPatientValue = (value: unknown) => {
+  const text = String(value ?? '').trim();
+  return text ? text : null;
+};
+
+const isValidPatientDate = (value: string) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+
+  const [, year, month, day] = match;
+  const parsedDate = new Date(`${value}T00:00:00.000Z`);
+  return (
+    parsedDate.getUTCFullYear() === Number(year) &&
+    parsedDate.getUTCMonth() + 1 === Number(month) &&
+    parsedDate.getUTCDate() === Number(day)
+  );
+};
+
+const validatePatientForm = (form: Record<string, any>) => {
+  const name = String(form.name || '').trim();
+  const email = optionalPatientValue(form.email);
+  const gender = optionalPatientValue(form.gender);
+  const dateOfBirth = optionalPatientValue(form.date_of_birth);
+  const bloodType = optionalPatientValue(form.blood_type);
+
+  if (!name) return 'Full name is required.';
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Please enter a valid email address.';
+  if (gender && !patientGenderOptions.includes(gender)) return `Gender must be one of: ${patientGenderOptions.join(', ')}.`;
+  if (dateOfBirth) {
+    if (!isValidPatientDate(dateOfBirth)) return 'Date of birth must use YYYY-MM-DD format.';
+    const parsedDate = new Date(`${dateOfBirth}T00:00:00`);
+    if (parsedDate > new Date()) return 'Date of birth cannot be in the future.';
+  }
+  if (bloodType && !patientBloodTypeOptions.includes(bloodType)) return `Blood type must be one of: ${patientBloodTypeOptions.join(', ')}.`;
+
+  return '';
+};
+
+const buildPatientPayload = (form: Record<string, any>): PatientRegistrationPayload => ({
+  name: String(form.name || '').trim(),
+  email: optionalPatientValue(form.email),
+  phone: optionalPatientValue(form.phone),
+  gender: optionalPatientValue(form.gender) as PatientRegistrationPayload['gender'],
+  date_of_birth: optionalPatientValue(form.date_of_birth),
+  blood_type: optionalPatientValue(form.blood_type) as PatientRegistrationPayload['blood_type'],
+  address: optionalPatientValue(form.address),
+  emergency_contact: optionalPatientValue(form.emergency_contact),
+  insurance_provider: optionalPatientValue(form.insurance_provider),
+});
 
 // ── Reception workflow: patient registration, scheduling, queue visibility, invoices, and payments. ──
 export function ReceptionPatientsScreen({ navigation }: any) {
@@ -788,10 +839,18 @@ export function ReceptionPatientFormScreen({ navigation, route }: any) {
   const updateField = (field: keyof typeof patientFormDefaults, value: string) => setForm((current) => ({ ...current, [field]: value }));
 
   const save = async () => {
+    const validationMessage = validatePatientForm(form);
+    if (validationMessage) {
+      setIsError(true);
+      setMessage(validationMessage);
+      return;
+    }
+
     try {
       setSaving(true);
       setMessage('');
-      const saved = patient?.id ? await updateReceptionPatient(patient.id, form) : await createReceptionPatient(form);
+      const payload = buildPatientPayload(form);
+      const saved = patient?.id ? await updatePatientRecord(patient.id, payload) : await createPatientRecord(payload);
       setForm({ ...patientFormDefaults, ...saved });
       setIsError(false);
       setMessage(patient?.id ? 'Patient updated.' : 'Patient registered.');
@@ -819,7 +878,7 @@ export function ReceptionPatientFormScreen({ navigation, route }: any) {
           <TextInput placeholder="Emergency contact" placeholderTextColor="#8b97a8" value={form.emergency_contact || ''} onChangeText={(value) => updateField('emergency_contact', value)} style={local.input} />
           <TextInput placeholder="Insurance provider" placeholderTextColor="#8b97a8" value={form.insurance_provider || ''} onChangeText={(value) => updateField('insurance_provider', value)} style={local.input} />
           {message ? <Text style={isError ? local.errorText : local.successText}>{message}</Text> : null}
-          <TouchableOpacity disabled={saving || !form.name} style={local.secondaryButton} onPress={save}>
+          <TouchableOpacity disabled={saving || !String(form.name || '').trim()} style={local.secondaryButton} onPress={save}>
             <Text style={local.secondaryButtonText}>{saving ? 'Saving...' : 'Save Patient'}</Text>
           </TouchableOpacity>
         </View>
@@ -1659,6 +1718,10 @@ export function ManagementScreen({ navigation, route }: any) {
   const openModule = (title: string) => {
     if (title === 'User Management') {
       navigation.getParent()?.navigate('AdminUsers');
+      return;
+    }
+    if (title === 'Patient Management') {
+      navigation.getParent()?.navigate('ReceptionPatientForm');
       return;
     }
     navigation.navigate('ModuleDetail', { title, role });

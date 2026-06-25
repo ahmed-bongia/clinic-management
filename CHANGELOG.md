@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-06-25 — Sprint 2.1 patient registration phase 1
+
+- Objective: Add Admin and Receptionist patient demographic registration without creating patient login accounts.
+- Reason: Establish the first safe Patient Management slice using existing patient APIs before appointments, EHR, billing, or medical history work.
+- Files modified: Patient routes/controller, existing role screens, and changelog.
+- Files added: Shared patient directory frontend service.
+- Database changes: None.
+- Backend changes: `POST /api/patients` now allows only Admin and Receptionist, patient create/update payloads are route-validated, and unsupported account, appointment, billing, allergies, and medical-history fields are rejected.
+- Validation/security improvements: Patient registration accepts only demographic fields and no longer accepts client-controlled `user_id` or login/password fields.
+- Testing performed: `npx tsc --noEmit`, `node --test` from backend with 0 discovered tests, direct backend JavaScript syntax check with `node --check`, and `git diff --check`.
+
 ## 2026-06-25 — Sprint 1C dashboard real data hydration
 
 - Objective: Hydrate the shared application shell with live dashboard data from existing APIs.
