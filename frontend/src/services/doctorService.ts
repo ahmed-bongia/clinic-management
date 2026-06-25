@@ -16,6 +16,30 @@ export interface DoctorAppointment {
   doctors?: any;
 }
 
+export type DoctorConsultationStatus = 'Draft' | 'Completed';
+
+export interface DoctorConsultationPayload {
+  chief_complaint: string;
+  symptoms: string;
+  diagnosis_summary: string;
+  treatment_plan: string;
+  doctor_notes: string;
+}
+
+export interface DoctorConsultation extends DoctorConsultationPayload {
+  id: string;
+  appointment_id: string;
+  patient_id: string;
+  doctor_id: string;
+  status: DoctorConsultationStatus;
+  updated_at?: string;
+}
+
+export interface DoctorConsultationContext {
+  appointment: DoctorAppointment;
+  consultation: DoctorConsultation;
+}
+
 export interface DoctorDashboardData {
   doctor: any;
   metrics: {
@@ -53,6 +77,19 @@ export const getDoctorAppointments = async (params?: { view?: 'today' | 'upcomin
   unwrap(await api.get('/doctor/appointments', { params }));
 
 export const getDoctorAppointment = async (id: string): Promise<DoctorAppointment> => unwrap(await api.get(`/doctor/appointments/${id}`));
+
+export const getDoctorConsultation = async (appointmentId: string): Promise<DoctorConsultationContext> =>
+  unwrap(await api.get(`/doctor/appointments/${appointmentId}/consultation`));
+
+export const saveDoctorConsultation = async (
+  appointmentId: string,
+  payload: DoctorConsultationPayload,
+): Promise<DoctorConsultationContext> => unwrap(await api.put(`/doctor/appointments/${appointmentId}/consultation`, payload));
+
+export const completeDoctorConsultation = async (
+  appointmentId: string,
+  payload: DoctorConsultationPayload,
+): Promise<DoctorConsultationContext> => unwrap(await api.post(`/doctor/appointments/${appointmentId}/consultation/complete`, payload));
 
 export const updateDoctorAppointmentStatus = async (id: string, status: AppointmentStatus): Promise<DoctorAppointment> =>
   unwrap(await api.patch(`/doctor/appointments/${id}/status`, { status }));

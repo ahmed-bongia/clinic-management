@@ -82,6 +82,12 @@ export default function AppointmentDetailsScreen({ navigation, route }: any) {
     : role === 'Receptionist'
     ? item && item.status !== 'Cancelled'
     : false;
+  const canOpenConsultation = role === 'Doctor' && item && !['Cancelled', 'No Show'].includes(item.status || '');
+  const consultationLabel = item?.status === 'Completed'
+    ? 'Review Consultation'
+    : item?.status === 'In Consultation'
+    ? 'Continue Consultation'
+    : 'Start Consultation';
 
   return (
     <Screen>
@@ -116,6 +122,11 @@ export default function AppointmentDetailsScreen({ navigation, route }: any) {
             <ListRow title="Created" subtitle={formatDate((item as any).created_at)} icon="add-circle-outline" tone={colors.muted} />
             {(item as any).updated_at ? <ListRow title="Last Updated" subtitle={formatDate((item as any).updated_at)} icon="refresh-outline" tone={colors.muted} /> : null}
             {actionMessage ? <Text style={actionError ? styles.errorText : styles.successText}>{actionMessage}</Text> : null}
+            {canOpenConsultation ? (
+              <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('DoctorConsultation', { appointmentId: item.id })}>
+                <Text style={styles.secondaryButtonText}>{consultationLabel}</Text>
+              </TouchableOpacity>
+            ) : null}
             {role === 'Receptionist' ? (
               <>
                 <TouchableOpacity disabled={actionSaving || !['Pending', 'Confirmed'].includes(item.status || '')} style={styles.secondaryButton} onPress={handleCheckIn}>
