@@ -33,6 +33,14 @@ export type PatientRegistrationPayload = {
 
 const unwrap = <T>(response: { data: { data: T } }) => response.data.data;
 
+export const listPatients = async (search?: string): Promise<PatientRecord[]> =>
+  unwrap(await api.get('/patients', { params: search ? { search } : undefined }));
+
+export const searchPatients = async (search: string): Promise<PatientRecord[]> => listPatients(search);
+
+export const getPatientById = async (id: string): Promise<PatientRecord> =>
+  unwrap(await api.get(`/patients/${id}`));
+
 export const createPatientRecord = async (payload: PatientRegistrationPayload): Promise<PatientRecord> =>
   unwrap(await api.post('/patients', payload));
 

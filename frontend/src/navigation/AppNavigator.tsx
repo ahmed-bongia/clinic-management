@@ -56,6 +56,7 @@ type TabConfig = {
 const ROLE_TABS: Record<Role, TabConfig[]> = {
   Admin: [
     { name: 'Dashboard', label: 'Dashboard', icon: 'grid-outline', component: RoleDashboardScreen },
+    { name: 'Patients', label: 'Patients', icon: 'people-outline', component: RoleListScreen },
     { name: 'Management', label: 'Management', icon: 'construct-outline', component: ManagementScreen },
     { name: 'Reports', label: 'Reports', icon: 'analytics-outline', component: ReportsScreen },
     { name: 'Profile', label: 'Profile', icon: 'person-outline', component: ProfileScreen },

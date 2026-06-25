@@ -66,7 +66,7 @@ import {
 } from '../../services/receptionService';
 import { Medicine, getMedicines } from '../../services/pharmacyService';
 import { LabTestRecord, getLabTests, updateLabTest } from '../../services/labService';
-import { PatientRegistrationPayload, createPatientRecord, updatePatientRecord } from '../../services/patientDirectoryService';
+import { PatientRegistrationPayload, PatientRecord, createPatientRecord, listPatients, updatePatientRecord } from '../../services/patientDirectoryService';
 import ApplicationShellScreen from '../../shell/ApplicationShellScreen';
 import {
   ActionCard,
@@ -110,6 +110,76 @@ function getName(route: any): string {
 
 function grid(children: React.ReactNode) {
   return <View style={local.grid}>{children}</View>;
+}
+
+function formatPatientMeta(patient: PatientRecord) {
+  return [patient.phone, patient.email].filter(Boolean).join(' • ') || 'No contact details';
+}
+
+function PatientDirectoryScreen({ navigation, title, subtitle, role }: { navigation: any; title: string; subtitle: string; role: 'Admin' | 'Receptionist' }) {
+  const [items, setItems] = useState<PatientRecord[]>([]);
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const load = async (query = search) => {
+    try {
+      setLoading(true);
+      setError('');
+      setItems(await listPatients(query.trim() || undefined));
+    } catch (loadError: any) {
+      console.error(`[${role} Patients] Load error:`, loadError.response?.data || loadError.message);
+      setError(loadError.response?.data?.message || 'Unable to load patients.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load('');
+  }, []);
+
+  return (
+    <Screen>
+      <Content>
+        <Header title={title} subtitle={subtitle} navigation={navigation} />
+        <View style={local.formCard}>
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            onSubmitEditing={() => load(search)}
+            placeholder="Search name, phone, or email"
+            placeholderTextColor="#8b97a8"
+            style={local.input}
+            autoCapitalize="none"
+          />
+          <TouchableOpacity style={local.secondaryButton} onPress={() => load(search)}>
+            <Text style={local.secondaryButtonText}>Search Patients</Text>
+          </TouchableOpacity>
+        </View>
+        {loading ? <ActivityIndicator color={colors.teal} /> : null}
+        {error ? (
+          <TouchableOpacity style={local.stateCard} onPress={() => load(search)}>
+            <Text style={local.errorText}>{error}</Text>
+            <Text style={local.retryText}>Tap to retry</Text>
+          </TouchableOpacity>
+        ) : null}
+        {!loading && !error && items.length === 0 ? <Text style={local.stateText}>No patients found.</Text> : null}
+        {items.map((item) => (
+          <ListRow
+            key={item.id}
+            title={item.name}
+            subtitle={formatPatientMeta(item)}
+            meta={item.gender || item.blood_type || 'Patient directory'}
+            status={item.blood_type || undefined}
+            icon="person-outline"
+            tone={colors.teal}
+            onPress={() => navigation.navigate('ModuleDetail', { title: item.name, role })}
+          />
+        ))}
+      </Content>
+    </Screen>
+  );
 }
 
 // Dashboard dispatcher: each role receives only its dashboard and its API calls.
@@ -255,7 +325,7 @@ function ReceptionDashboard({ navigation }: any) {
             <ActionCard large icon="person-add-outline" title="Register" subtitle="New Patient" tone={colors.orange} onPress={() => navigation.getParent()?.navigate('ReceptionPatientForm')} />
             <ActionCard large icon="calendar-outline" title="Schedule" subtitle="Appointment" tone={colors.blue} onPress={() => navigation.getParent()?.navigate('ReceptionAppointmentForm')} />
             <ActionCard icon="cash-outline" title="Billing" tone={colors.teal} onPress={() => navigation.navigate('Billing')} />
-            <ActionCard icon="document-text-outline" title="Patients" tone={colors.purple} onPress={() => navigation.navigate('Patients')} />
+            <ActionCard icon="document-text-outline" title="Patients" tone={colors.purple} onPress={() => navigation.getParent()?.navigate('Patients')} />
           </>,
         )}
         <SectionHeader title="Waiting Room" action={`${waitingRoom.length} Waiting`} onPress={() => navigation.getParent()?.navigate('ReceptionWaitingRoom')} />
@@ -559,11 +629,12 @@ function LabDashboard({ navigation }: any) {
 export function RoleListScreen({ navigation, route }: any) {
   const role = getRole(route);
   const title = route.name;
+  if (role === 'Admin' && title === 'Patients') return <PatientDirectoryScreen navigation={navigation} title="Patients" subtitle="Admin patient directory" role="Admin" />;
   if (role === 'Doctor' && title === 'Schedule') return <DoctorAppointmentsScreen navigation={navigation} />;
   if (role === 'Doctor' && title === 'Patients') return <DoctorPatientsScreen navigation={navigation} />;
   if (role === 'Patient' && title === 'Appointments') return <PatientAppointmentsScreen navigation={navigation} />;
   if (role === 'Patient' && title === 'Records') return <PatientRecordsScreen navigation={navigation} />;
-  if (role === 'Receptionist' && title === 'Patients') return <ReceptionPatientsScreen navigation={navigation} />;
+  if (role === 'Receptionist' && title === 'Patients') return <PatientDirectoryScreen navigation={navigation} title="Patients" subtitle="Front desk patient directory" role="Receptionist" />;
   if (role === 'Receptionist' && title === 'Appointments') return <ReceptionAppointmentsScreen navigation={navigation} />;
   if (role === 'Receptionist' && title === 'Billing') return <ReceptionBillingScreen navigation={navigation} />;
   if (role === 'Pharmacist' && (title === 'Inventory' || title === 'Medicines' || title === 'Alerts')) return <PharmacyInventoryScreen navigation={navigation} mode={title} />;
@@ -769,64 +840,7 @@ const buildPatientPayload = (form: Record<string, any>): PatientRegistrationPayl
 
 // ── Reception workflow: patient registration, scheduling, queue visibility, invoices, and payments. ──
 export function ReceptionPatientsScreen({ navigation }: any) {
-  const [items, setItems] = useState<ReceptionPatient[]>([]);
-  const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  const load = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      setItems(await getReceptionPatients(search));
-    } catch (loadError: any) {
-      console.error('[Reception Patients] Load error:', loadError.response?.data || loadError.message);
-      setError(loadError.response?.data?.message || 'Unable to load patients.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  return (
-    <Screen>
-      <Content>
-        <Header title="Patients" subtitle="Registration and search" navigation={navigation} />
-        <View style={local.formCard}>
-          <TextInput value={search} onChangeText={setSearch} placeholder="Search name, phone, email, or patient ID" placeholderTextColor="#8b97a8" style={local.input} />
-          <TouchableOpacity style={local.secondaryButton} onPress={load}>
-            <Text style={local.secondaryButtonText}>Search Patients</Text>
-          </TouchableOpacity>
-        </View>
-        <TouchableOpacity style={local.outlineButton} onPress={() => navigation.getParent()?.navigate('ReceptionPatientForm')}>
-          <Text style={local.outlineButtonText}>Register New Patient</Text>
-        </TouchableOpacity>
-        {loading ? <ActivityIndicator color={colors.teal} /> : null}
-        {error ? (
-          <TouchableOpacity style={local.stateCard} onPress={load}>
-            <Text style={local.errorText}>{error}</Text>
-            <Text style={local.retryText}>Tap to retry</Text>
-          </TouchableOpacity>
-        ) : null}
-        {!loading && !error && items.length === 0 ? <Text style={local.stateText}>No patients found.</Text> : null}
-        {items.map((item) => (
-          <ListRow
-            key={item.id}
-            title={item.name}
-            subtitle={`${item.phone || item.email || 'No contact'} - Billing ${item.billingStatus || 'Clear'}`}
-            meta={item.upcomingAppointment ? `Next: ${new Date(item.upcomingAppointment.appointment_date).toLocaleString()}` : 'No upcoming appointment'}
-            status={item.blood_type || ''}
-            icon="person-outline"
-            tone={item.billingStatus === 'Pending' ? colors.orange : colors.teal}
-            onPress={() => navigation.getParent()?.navigate('ReceptionPatientForm', { patient: item })}
-          />
-        ))}
-      </Content>
-    </Screen>
-  );
+  return <PatientDirectoryScreen navigation={navigation} title="Patients" subtitle="Registration and search" role="Receptionist" />;
 }
 
 export function ReceptionPatientFormScreen({ navigation, route }: any) {

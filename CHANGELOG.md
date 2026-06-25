@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-06-25 — Sprint 2.2 patient directory/list
+
+- Objective: Replace the patient directory/list placeholder with an API-backed directory for Admin and Receptionist roles.
+- Reason: Reuse the existing patient API and shared patient-directory service without changing schema or unrelated flows.
+- Files modified: Frontend patient-directory service, phase1 role screens, admin tab navigation, and changelog.
+- Files added: None.
+- Database changes: None.
+- Backend changes: None.
+- Validation/security improvements: Patient search now uses the existing `/api/patients` endpoint with search by name, phone, or email; only Admin and Receptionist receive the patient directory entry point.
+- Testing performed: Pending after implementation.
+
 ## 2026-06-25 — Sprint 2.1 patient registration phase 1
 
 - Objective: Add Admin and Receptionist patient demographic registration without creating patient login accounts.
