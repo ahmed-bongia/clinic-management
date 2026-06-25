@@ -1,6 +1,6 @@
 import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+import { clearSession, getAccessToken } from './sessionStorage';
 
 const getExpoHostApiUrl = () => {
   const constants = Constants as any;
@@ -34,12 +34,12 @@ const api = axios.create({
 api.interceptors.request.use(
   async (config) => {
     try {
-      const token = await AsyncStorage.getItem('auth_token');
+      const token = await getAccessToken();
       if (token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
       }
     } catch (error) {
-      console.warn('[API Service] Error reading token from AsyncStorage:', error);
+      console.warn('[API Service] Error reading secure session token:', error);
     }
     return config;
   },
@@ -50,7 +50,11 @@ api.interceptors.request.use(
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    if (error.response?.status === 401) {
+      await clearSession();
+    }
+
     if (!error.response) {
       console.error('[API Service] Network request failed:', {
         baseURL: error.config?.baseURL,

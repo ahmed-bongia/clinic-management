@@ -1,6 +1,9 @@
 const express = require('express');
 const authMiddleware = require('../middleware/authMiddleware');
 const roleMiddleware = require('../middleware/roleMiddleware');
+const { patientRecordAccess } = require('../middleware/ownershipMiddleware');
+const validationMiddleware = require('../middleware/validationMiddleware');
+const { createPatientValidators, patientIdValidator } = require('../validators/requestValidators');
 const {
   getAllPatients,
   getPatientById,
@@ -19,28 +22,28 @@ router.use(authMiddleware);
  * @desc    List all patients (Patients see only own record)
  * @access  Admin, Doctor, Receptionist, Patient (own)
  */
-router.get('/', getAllPatients);
+router.get('/', roleMiddleware(['Admin', 'Doctor', 'Receptionist', 'Patient']), getAllPatients);
 
 /**
  * @route   GET /api/patients/:id
  * @desc    Get patient by ID
  * @access  Admin, Doctor, Receptionist, Patient (own)
  */
-router.get('/:id', getPatientById);
+router.get('/:id', patientIdValidator, validationMiddleware, patientRecordAccess, getPatientById);
 
 /**
  * @route   POST /api/patients
  * @desc    Create a new patient
  * @access  Admin, Doctor, Receptionist
  */
-router.post('/', roleMiddleware(['Admin', 'Doctor', 'Receptionist']), createPatient);
+router.post('/', roleMiddleware(['Admin', 'Doctor', 'Receptionist']), createPatientValidators, validationMiddleware, createPatient);
 
 /**
  * @route   PUT /api/patients/:id
  * @desc    Update a patient (Patient can update own)
  * @access  Admin, Doctor, Receptionist, Patient (own)
  */
-router.put('/:id', updatePatient);
+router.put('/:id', patientIdValidator, validationMiddleware, patientRecordAccess, updatePatient);
 
 /**
  * @route   DELETE /api/patients/:id

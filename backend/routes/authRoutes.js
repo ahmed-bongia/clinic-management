@@ -1,10 +1,24 @@
 const express = require('express');
+const { rateLimit } = require('express-rate-limit');
 const { body } = require('express-validator');
 const { login, register, getCurrentUser, changePassword } = require('../controllers/authController');
 const authMiddleware = require('../middleware/authMiddleware');
 const validationMiddleware = require('../middleware/validationMiddleware');
+const { loginValidators, registerValidators } = require('../validators/requestValidators');
 
 const router = express.Router();
+
+const loginRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: {
+    success: false,
+    message: 'Too many failed login attempts. Please try again in 15 minutes.'
+  }
+});
 
 /**
  * @route POST /api/auth/login
@@ -13,10 +27,8 @@ const router = express.Router();
  */
 router.post(
   '/login',
-  [
-    body('email').isEmail().withMessage('Please enter a valid email address'),
-    body('password').notEmpty().withMessage('Password is required')
-  ],
+  loginRateLimiter,
+  loginValidators,
   validationMiddleware,
   login
 );
@@ -28,13 +40,7 @@ router.post(
  */
 router.post(
   '/register',
-  [
-    body('fullName').notEmpty().withMessage('Full name is required'),
-    body('email').isEmail().withMessage('Please enter a valid email address'),
-    body('password')
-      .isLength({ min: 6 })
-      .withMessage('Password must be at least 6 characters'),
-  ],
+  registerValidators,
   validationMiddleware,
   register
 );

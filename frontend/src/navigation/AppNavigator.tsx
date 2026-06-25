@@ -1,5 +1,5 @@
 import React from 'react';
-import { Dimensions, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -24,6 +24,7 @@ import {
   RoleListScreen,
 } from '../screens/phase1/RoleScreens';
 import { Role } from '../ui/clinicData';
+import { AuthProvider, useAuth } from '../context/AuthContext';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -106,7 +107,8 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
 }
 
 function MainTabNavigator({ route }: any) {
-  const user = route.params?.user;
+  const { user: sessionUser } = useAuth();
+  const user = route.params?.user || sessionUser;
   const role: Role = user?.role || 'Patient';
   const tabs = ROLE_TABS[role] || ROLE_TABS.Patient;
 
@@ -125,28 +127,66 @@ function MainTabNavigator({ route }: any) {
   );
 }
 
-export default function AppNavigator() {
+function SessionRestoreScreen() {
+  return (
+    <View style={styles.restoreScreen}>
+      <ActivityIndicator color="#004b46" size="large" />
+      <Text style={styles.restoreText}>Restoring secure session...</Text>
+    </View>
+  );
+}
+
+function AuthenticatedNavigator() {
+  const { isAuthenticated, isRestoring, user } = useAuth();
+  const initialRouteName = isRestoring ? 'SessionRestore' : isAuthenticated ? 'MainTabs' : 'Login';
+
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="Register" component={RegisterScreen} />
-        <Stack.Screen name="MainTabs" component={MainTabNavigator} />
-        <Stack.Screen name="Notifications" component={NotificationsScreen} />
-        <Stack.Screen name="AdminUsers" component={AdminUsersScreen} />
-        <Stack.Screen name="ActiveStaff" component={ActiveStaffScreen} />
-        <Stack.Screen name="ProfileInformation" component={ProfileInformationScreen} />
-        <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
-        <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
-        <Stack.Screen name="AppSettings" component={AppSettingsScreen} />
-        <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
-        <Stack.Screen name="ModuleDetail" component={ModuleDetailScreen} />
+      <Stack.Navigator key={initialRouteName} initialRouteName={initialRouteName} screenOptions={{ headerShown: false }}>
+        {isRestoring ? (
+          <Stack.Screen name="SessionRestore" component={SessionRestoreScreen} />
+        ) : (
+          <>
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="Register" component={RegisterScreen} />
+            <Stack.Screen name="MainTabs" component={MainTabNavigator} initialParams={{ user }} />
+            <Stack.Screen name="Notifications" component={NotificationsScreen} />
+            <Stack.Screen name="AdminUsers" component={AdminUsersScreen} />
+            <Stack.Screen name="ActiveStaff" component={ActiveStaffScreen} />
+            <Stack.Screen name="ProfileInformation" component={ProfileInformationScreen} />
+            <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
+            <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
+            <Stack.Screen name="AppSettings" component={AppSettingsScreen} />
+            <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
+            <Stack.Screen name="ModuleDetail" component={ModuleDetailScreen} />
+          </>
+        )}
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
 
+export default function AppNavigator() {
+  return (
+    <AuthProvider>
+      <AuthenticatedNavigator />
+    </AuthProvider>
+  );
+}
+
 const styles = StyleSheet.create({
+  restoreScreen: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f3f7f6',
+  },
+  restoreText: {
+    color: '#004b46',
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 12,
+  },
   tabShell: {
     position: 'absolute',
     left: 0,

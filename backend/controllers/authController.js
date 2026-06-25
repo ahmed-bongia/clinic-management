@@ -1,5 +1,5 @@
 const bcrypt = require('bcryptjs');
-const { generateToken } = require('../utils/jwt');
+const { generateToken, isJwtSecretConfigured } = require('../utils/jwt');
 const { successResponse, errorResponse } = require('../utils/response');
 const { supabase } = require('../config/supabase');
 
@@ -13,6 +13,11 @@ const login = async (req, res, next) => {
   try {
     console.log('[AUTH] Login attempt for:', email);
     const formattedEmail = email.toLowerCase().trim();
+
+    if (!isJwtSecretConfigured()) {
+      console.error('[AUTH] JWT_SECRET is not configured.');
+      return errorResponse(res, 'Authentication is unavailable.', 500);
+    }
 
     if (!supabase) {
       return errorResponse(res, 'Database is not configured.', 503);
@@ -31,23 +36,11 @@ const login = async (req, res, next) => {
       return errorResponse(res, 'Invalid email or password.', 401);
     }
 
-    // Verify password (support both bcrypt hash and direct plaintext comparison for test users)
     let isMatch = false;
-    const isBcryptHash = user.password_hash.startsWith('$2a$') || 
-                         user.password_hash.startsWith('$2b$') || 
-                         user.password_hash.startsWith('$2y$');
-
-    if (isBcryptHash) {
-      try {
-        console.log('[AUTH] Bcrypt password comparison for user:', formattedEmail);
-        isMatch = await bcrypt.compare(password, user.password_hash);
-      } catch (err) {
-        console.error('[AUTH] Bcrypt comparison error:', err.message);
-        isMatch = (password === user.password_hash);
-      }
-    } else {
-      console.log('[AUTH] Plaintext password comparison for user:', formattedEmail);
-      isMatch = (password === user.password_hash);
+    try {
+      isMatch = await bcrypt.compare(password, user.password_hash);
+    } catch (error) {
+      console.error('[AUTH] Password hash verification failed:', error.message);
     }
 
     if (!isMatch) {
@@ -83,7 +76,7 @@ const login = async (req, res, next) => {
     });
   } catch (error) {
     console.error('[AUTH] Login exception:', error.message, error.stack);
-    return errorResponse(res, `Login failed: ${error.message}`, 500);
+    return errorResponse(res, 'Login failed. Please try again later.', 500);
   }
 };
 
@@ -92,11 +85,16 @@ const login = async (req, res, next) => {
  * Register a new user account
  */
 const register = async (req, res, next) => {
-  const { fullName, email, password, role } = req.body;
+  const { fullName, email, password } = req.body;
 
   try {
     console.log('[AUTH] Registration endpoint hit');
-    console.log('[AUTH] Request body:', { fullName, email, role, passwordLength: password?.length });
+    console.log('[AUTH] Request body:', { fullName, email, passwordLength: password?.length });
+
+    if (!isJwtSecretConfigured()) {
+      console.error('[AUTH] JWT_SECRET is not configured.');
+      return errorResponse(res, 'Authentication is unavailable.', 500);
+    }
 
     if (!supabase) {
       console.error('[AUTH] Supabase not configured');
@@ -126,9 +124,9 @@ const register = async (req, res, next) => {
 
     console.log('[AUTH] User does not exist, proceeding with registration');
 
-    // Validate role
-    const validRoles = ['Admin', 'Doctor', 'Patient', 'Receptionist', 'Pharmacist', 'Laboratory Staff'];
-    const userRole = role && validRoles.includes(role) ? role : 'Patient';
+    // Public registration is limited to patient accounts. Staff and Admin accounts
+    // must be created through protected administrative user-management routes.
+    const userRole = 'Patient';
 
     // Hash password
     console.log('[AUTH] Hashing password...');
@@ -260,12 +258,12 @@ const changePassword = async (req, res, next) => {
       return errorResponse(res, 'User not found or inactive.', 404);
     }
 
-    const isBcryptHash = user.password_hash.startsWith('$2a$') ||
-                         user.password_hash.startsWith('$2b$') ||
-                         user.password_hash.startsWith('$2y$');
-    const isMatch = isBcryptHash
-      ? await bcrypt.compare(currentPassword, user.password_hash)
-      : currentPassword === user.password_hash;
+    let isMatch = false;
+    try {
+      isMatch = await bcrypt.compare(currentPassword, user.password_hash);
+    } catch (error) {
+      console.error('[AUTH] Password hash verification failed:', error.message);
+    }
 
     if (!isMatch) {
       return errorResponse(res, 'Current password is incorrect.', 400);

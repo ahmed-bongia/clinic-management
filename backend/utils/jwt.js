@@ -1,6 +1,16 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'default-super-secret-key';
+const getJwtSecret = () => {
+  const jwtSecret = process.env.JWT_SECRET?.trim();
+
+  if (!jwtSecret) {
+    throw new Error('JWT_SECRET is not configured.');
+  }
+
+  return jwtSecret;
+};
+
+const isJwtSecretConfigured = () => Boolean(process.env.JWT_SECRET?.trim());
 
 /**
  * Generate JWT token
@@ -8,7 +18,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'default-super-secret-key';
  * @returns {string} Signed JWT
  */
 const generateToken = (payload) => {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign(payload, getJwtSecret(), { expiresIn: '7d' });
 };
 
 /**
@@ -18,7 +28,7 @@ const generateToken = (payload) => {
  */
 const verifyToken = (token) => {
   try {
-    return jwt.verify(token, JWT_SECRET);
+    return jwt.verify(token, getJwtSecret());
   } catch (error) {
     return null;
   }
@@ -26,5 +36,6 @@ const verifyToken = (token) => {
 
 module.exports = {
   generateToken,
+  isJwtSecretConfigured,
   verifyToken
 };

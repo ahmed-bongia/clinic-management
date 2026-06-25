@@ -1,9 +1,9 @@
 const bcrypt = require('bcryptjs');
 const { successResponse, errorResponse } = require('../utils/response');
 const { supabase } = require('../config/supabase');
+const { STAFF_ROLES, SYSTEM_ROLES } = require('../utils/roles');
 
-const ROLES = ['Admin', 'Doctor', 'Patient', 'Receptionist', 'Pharmacist', 'Laboratory Staff'];
-const STAFF_ROLES = ['Doctor', 'Receptionist', 'Pharmacist', 'Laboratory Staff'];
+const ROLES = SYSTEM_ROLES;
 
 const getTodayBounds = () => {
   const start = new Date();

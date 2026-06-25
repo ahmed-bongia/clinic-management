@@ -10,7 +10,7 @@ import {
   ScrollView,
   StatusBar,
 } from 'react-native';
-import { login } from '../../services/authService';
+import { useAuth } from '../../context/AuthContext';
 
 const COLORS = {
   primary: '#0A6EBD',
@@ -27,6 +27,7 @@ const COLORS = {
 };
 
 export default function LoginScreen({ navigation }: any) {
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -47,10 +48,6 @@ export default function LoginScreen({ navigation }: any) {
       if (response.success) {
         setEmail('');
         setPassword('');
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'MainTabs', params: { user: response.user } }],
-        });
       } else {
         setError(response.message || 'Login returned unsuccessful response');
       }

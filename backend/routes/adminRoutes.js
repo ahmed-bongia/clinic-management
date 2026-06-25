@@ -1,6 +1,8 @@
 const express = require('express');
 const authMiddleware = require('../middleware/authMiddleware');
 const roleMiddleware = require('../middleware/roleMiddleware');
+const validationMiddleware = require('../middleware/validationMiddleware');
+const { createAdminUserValidators } = require('../validators/requestValidators');
 const {
   createUser,
   getActiveStaff,
@@ -24,7 +26,7 @@ router.use(roleMiddleware(['Admin']));
 router.get('/dashboard', getDashboardMetrics);
 router.get('/dashboard/metrics', getDashboardMetrics);
 router.get('/users', getUsers);
-router.post('/users', createUser);
+router.post('/users', createAdminUserValidators, validationMiddleware, createUser);
 router.put('/users/:id', updateUser);
 router.patch('/users/:id/status', updateUserStatus);
 router.patch('/users/:id/password', resetUserPassword);
