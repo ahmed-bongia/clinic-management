@@ -1,6 +1,7 @@
 // Reusable visual primitives for the phase-one role screens. They standardize spacing, color, and interaction states.
 import React from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import type { ScrollViewProps } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 // Semantic color names keep role screens from scattering raw design tokens.
@@ -23,9 +24,9 @@ export function Screen({ children }: { children: React.ReactNode }) {
   return <View style={styles.screen}>{children}</View>;
 }
 
-export function Content({ children }: { children: React.ReactNode }) {
+export function Content({ children, refreshControl }: { children: React.ReactNode; refreshControl?: ScrollViewProps['refreshControl'] }) {
   return (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content} refreshControl={refreshControl}>
       {children}
     </ScrollView>
   );
