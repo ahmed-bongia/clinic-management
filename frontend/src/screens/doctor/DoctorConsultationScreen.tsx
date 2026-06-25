@@ -176,6 +176,13 @@ export default function DoctorConsultationScreen({ navigation, route }: any) {
               <TouchableOpacity disabled={saving || completed} style={[styles.outlineButton, (saving || completed) && styles.disabledButton]} onPress={() => submit(true)}>
                 <Text style={styles.outlineButtonText}>Complete Consultation</Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                disabled={saving}
+                style={[styles.outlineButton, saving && styles.disabledButton]}
+                onPress={() => navigation.navigate('DoctorLabRequest', { appointmentId, patientId: appointment?.patient_id, patientName: appointment?.patients?.name })}
+              >
+                <Text style={styles.outlineButtonText}>Lab Request</Text>
+              </TouchableOpacity>
             </View>
           </>
         ) : null}

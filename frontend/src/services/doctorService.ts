@@ -169,3 +169,50 @@ export const finalizeDoctorPrescription = async (prescriptionId: string): Promis
 
 export const getDoctorPatientPrescriptions = async (patientId: string): Promise<Prescription[]> =>
   unwrap(await api.get(`/doctor/patients/${patientId}/prescriptions`));
+
+// ─── Lab Request types & API ──────────────────────────────────────────────────
+
+export type LabRequestStatus = 'Draft' | 'Submitted';
+export type TestPriority = 'Routine' | 'Urgent' | 'Stat';
+
+export interface LabRequestTestForm {
+  test_name: string;
+  priority: TestPriority;
+  clinical_notes?: string;
+}
+
+export interface LabRequestTest extends LabRequestTestForm {
+  id: string;
+  request_id?: string;
+  status?: string;
+  created_at?: string;
+}
+
+export interface LabRequest {
+  id: string;
+  appointment_id: string;
+  patient_id: string;
+  doctor_id: string;
+  status: LabRequestStatus;
+  notes?: string;
+  lab_request_tests?: LabRequestTest[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface LabRequestSavePayload {
+  notes?: string;
+  tests: LabRequestTestForm[];
+}
+
+export const getDoctorAppointmentLabRequest = async (appointmentId: string): Promise<LabRequest> =>
+  unwrap(await api.get(`/doctor/appointments/${appointmentId}/lab-request`));
+
+export const saveDoctorLabRequest = async (appointmentId: string, payload: LabRequestSavePayload): Promise<LabRequest> =>
+  unwrap(await api.put(`/doctor/appointments/${appointmentId}/lab-request`, payload));
+
+export const submitDoctorLabRequest = async (labRequestId: string): Promise<LabRequest> =>
+  unwrap(await api.post(`/doctor/lab-requests/${labRequestId}/submit`));
+
+export const getDoctorPatientLabRequests = async (patientId: string): Promise<LabRequest[]> =>
+  unwrap(await api.get(`/doctor/patients/${patientId}/lab-requests`));

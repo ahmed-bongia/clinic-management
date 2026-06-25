@@ -5,6 +5,8 @@ const { supabase } = require('../config/supabase');
 // Shared status vocabularies prevent invalid state updates from reaching the database.
 const STATUSES = ['Pending', 'Confirmed', 'Checked In', 'In Consultation', 'Completed', 'Cancelled', 'No Show'];
 const LAB_STATUSES = ['Pending', 'Processing', 'Completed', 'Cancelled'];
+const LAB_REQUEST_STATUSES = ['Pending', 'Collected', 'Processing', 'Completed', 'Cancelled'];
+const PRIORITIES = ['Routine', 'Urgent', 'Stat'];
 const CONSULTATION_NOTE_SCHEMA = 'medicore.consultation.v1';
 const CONSULTATION_FIELDS = ['chief_complaint', 'symptoms', 'diagnosis_summary', 'treatment_plan', 'doctor_notes'];
 
@@ -634,6 +636,157 @@ const getPatientPrescriptions = async (req, res, next) => {
   }
 };
 
+const getLabRequest = async (req, res, next) => {
+  try {
+    const doctor = await requireDoctor(req, res);
+    if (!doctor) return;
+
+    const { data: appointment, error: apptError } = await supabase
+      .from('appointments')
+      .select('id, patient_id')
+      .eq('id', req.params.id)
+      .eq('doctor_id', doctor.id)
+      .single();
+    if (apptError || !appointment) return errorResponse(res, 'Appointment not found.', 404);
+
+    const { data: labRequest, error } = await supabase
+      .from('lab_requests')
+      .select('*, lab_request_tests:lab_request_tests(*)')
+      .eq('appointment_id', req.params.id)
+      .maybeSingle();
+    if (error) return errorResponse(res, 'Failed to retrieve lab request.', 500, error.message);
+    if (!labRequest) return errorResponse(res, 'No lab request found for this appointment.', 404);
+
+    return successResponse(res, 'Lab request retrieved successfully', labRequest);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const saveLabRequest = async (req, res, next) => {
+  try {
+    const doctor = await requireDoctor(req, res);
+    if (!doctor) return;
+
+    const { data: appointment, error: apptError } = await supabase
+      .from('appointments')
+      .select('id, patient_id')
+      .eq('id', req.params.id)
+      .eq('doctor_id', doctor.id)
+      .single();
+    if (apptError || !appointment) return errorResponse(res, 'Appointment not found.', 404);
+
+    const { notes, tests } = req.body;
+    if (!Array.isArray(tests) || tests.length === 0) {
+      return errorResponse(res, 'At least one lab test is required.', 400);
+    }
+    for (const test of tests) {
+      if (!test.test_name || !test.test_name.trim()) {
+        return errorResponse(res, 'Each test requires a non-empty test_name.', 400);
+      }
+    }
+
+    const { data: existing } = await supabase
+      .from('lab_requests')
+      .select('id, status')
+      .eq('appointment_id', req.params.id)
+      .maybeSingle();
+    if (existing?.status === 'Submitted') return errorResponse(res, 'Submitted lab requests cannot be edited.', 400);
+
+    let requestId = existing?.id;
+
+    if (requestId) {
+      await supabase.from('lab_requests').update({ notes, updated_at: new Date().toISOString() }).eq('id', requestId);
+      await supabase.from('lab_request_tests').delete().eq('request_id', requestId);
+    } else {
+      const { data: created, error: createError } = await supabase
+        .from('lab_requests')
+        .insert({ appointment_id: req.params.id, patient_id: appointment.patient_id, doctor_id: doctor.id, notes, status: 'Draft' })
+        .select('id')
+        .single();
+      if (createError || !created) return errorResponse(res, 'Failed to create lab request.', 500, createError?.message);
+      requestId = created.id;
+    }
+
+    const rows = tests.map((test) => ({
+      request_id: requestId,
+      test_name: test.test_name.trim(),
+      priority: PRIORITIES.includes(test.priority) ? test.priority : 'Routine',
+      clinical_notes: (test.clinical_notes || '').trim(),
+      status: 'Pending'
+    }));
+    const { error: insertError } = await supabase.from('lab_request_tests').insert(rows);
+    if (insertError) return errorResponse(res, 'Failed to save lab request tests.', 500, insertError.message);
+
+    const { data: result, error: fetchError } = await supabase
+      .from('lab_requests')
+      .select('*, lab_request_tests:lab_request_tests(*)')
+      .eq('id', requestId)
+      .single();
+    if (fetchError) return errorResponse(res, 'Lab request saved but failed to reload.', 500, fetchError.message);
+
+    return successResponse(res, 'Lab request saved successfully', result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const submitLabRequest = async (req, res, next) => {
+  try {
+    const doctor = await requireDoctor(req, res);
+    if (!doctor) return;
+
+    const { data: labRequest, error } = await supabase
+      .from('lab_requests')
+      .select('*, lab_request_tests:lab_request_tests(*)')
+      .eq('id', req.params.id)
+      .single();
+    if (error || !labRequest) return errorResponse(res, 'Lab request not found.', 404);
+    if (labRequest.doctor_id !== doctor.id) return errorResponse(res, 'Lab request not found.', 404);
+    if (labRequest.status === 'Submitted') return errorResponse(res, 'Lab request is already submitted.', 400);
+    if (!labRequest.lab_request_tests?.length) return errorResponse(res, 'Cannot submit a lab request with no tests.', 400);
+
+    const { data: updated, error: updateError } = await supabase
+      .from('lab_requests')
+      .update({ status: 'Submitted', updated_at: new Date().toISOString() })
+      .eq('id', req.params.id)
+      .select('*, lab_request_tests:lab_request_tests(*)')
+      .single();
+    if (updateError) return errorResponse(res, 'Failed to submit lab request.', 500, updateError.message);
+
+    return successResponse(res, 'Lab request submitted successfully', updated);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getPatientLabRequests = async (req, res, next) => {
+  try {
+    const doctor = await requireDoctor(req, res);
+    if (!doctor) return;
+
+    const { data: hasAccess } = await supabase
+      .from('appointments')
+      .select('id')
+      .eq('doctor_id', doctor.id)
+      .eq('patient_id', req.params.patientId)
+      .limit(1)
+      .maybeSingle();
+    if (!hasAccess) return errorResponse(res, 'Patient not assigned to this doctor.', 403);
+
+    const { data, error } = await supabase
+      .from('lab_requests')
+      .select('*, lab_request_tests:lab_request_tests(*)')
+      .eq('patient_id', req.params.patientId)
+      .order('created_at', { ascending: false });
+    if (error) return errorResponse(res, 'Failed to retrieve patient lab requests.', 500, error.message);
+
+    return successResponse(res, 'Patient lab requests retrieved successfully', data || []);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getDashboard,
   getAppointments,
@@ -652,5 +805,9 @@ module.exports = {
   getPrescription,
   savePrescription,
   finalizePrescription,
-  getPatientPrescriptions
+  getPatientPrescriptions,
+  getLabRequest,
+  saveLabRequest,
+  submitLabRequest,
+  getPatientLabRequests
 };

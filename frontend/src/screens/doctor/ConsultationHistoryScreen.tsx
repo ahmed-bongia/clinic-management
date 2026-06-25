@@ -74,6 +74,9 @@ export default function ConsultationHistoryScreen({ navigation, route }: any) {
           <TouchableOpacity style={styles.outlineButton} onPress={() => navigation.navigate('DoctorPrescription', { appointmentId: selected.appointment_id, patientId: selected.patient_id, patientName: selected.patient?.name })}>
             <Text style={styles.outlineButtonText}>View Prescription</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={styles.outlineButton} onPress={() => navigation.navigate('DoctorLabRequest', { appointmentId: selected.appointment_id, patientId: selected.patient_id, patientName: selected.patient?.name })}>
+            <Text style={styles.outlineButtonText}>View Lab Request</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.outlineButton} onPress={() => setSelected(null)}>
             <Text style={styles.outlineButtonText}>Back to History</Text>
           </TouchableOpacity>

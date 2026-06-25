@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-06-26 — Sprint 4.5 laboratory request management
+
+- Objective: Implement a complete Laboratory Request Management workflow attached to existing consultations.
+- Reason: Allow doctors to create, save as draft, and submit lab requests with multiple tests, priority, and clinical notes.
+- Files modified: Backend schema, doctor portal controller/routes, doctor service, appointment details screen, consultation screen, consultation history screen, app navigator, and changelog.
+- Files added: LabRequestScreen.
+- Database changes: Added lab_requests and lab_request_tests tables to reference schema (existing lab_tests table untouched).
+- Backend changes: Added `GET/PUT /api/doctor/appointments/:id/lab-request`, `POST /api/doctor/lab-requests/:id/submit`, and `GET /api/doctor/patients/:patientId/lab-requests` under the existing doctor portal. PUT replaces all tests (idempotent). Submitted requests are read-only. No lab result entry.
+- Validation/security improvements: All endpoints scoped to the authenticated doctor's patient assignments; submitted requests reject edits; save requires at least one test with non-empty test_name.
+- Testing performed: `npx tsc --noEmit`, `node --check` on backend, `git diff --check`.
+
 ## 2026-06-26 — Sprint 4.4 prescription management
 
 - Objective: Implement a complete Doctor Prescription Management module attached to existing consultations.
