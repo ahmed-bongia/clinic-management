@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-06-26 — Sprint 4.1 doctor dashboard and patient queue
+
+- Objective: Upgrade the Doctor dashboard with live appointment-backed metrics and today's patient queue.
+- Reason: Replace placeholder dashboard data with existing doctor appointment APIs before consultation notes, prescriptions, lab ordering, billing, or EHR editing.
+- Files modified: Phase1 role screens, shared UI content container, and changelog.
+- Files added: None.
+- Database changes: None.
+- Backend changes: None.
+- Validation/security improvements: Doctor dashboard uses existing authenticated doctor APIs and preserves existing AppointmentDetails navigation.
+- Testing performed: `npx tsc --noEmit`, `node --test` from backend with 0 discovered tests, direct backend JavaScript syntax check with `node --check`, and `git diff --check`.
+
 ## 2026-06-26 — Sprint 3.3 appointment detail screen
 
 - Objective: Replace generic appointment detail handling with a dedicated, unified Appointment Details screen.

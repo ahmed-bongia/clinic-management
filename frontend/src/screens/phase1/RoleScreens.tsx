@@ -1,6 +1,6 @@
 // Role-aware screen collection. Each workflow is grouped below but shares the same design primitives and API adapters.
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { ActivityIndicator, RefreshControl, View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { changePassword as changeOwnPassword, getCurrentUserProfile, logout } from '../../services/authService';
 import {
@@ -18,7 +18,6 @@ import {
 import {
   AppointmentStatus,
   DoctorAppointment,
-  DoctorDashboardData,
   DoctorLabTest,
   createDoctorLabTest,
   getDoctorAppointment,
@@ -186,6 +185,8 @@ function PatientDirectoryScreen({ navigation, title, subtitle, role }: { navigat
 export function RoleDashboardScreen({ navigation, route }: any) {
   const role = getRole(route);
   const user = route?.params?.user || { role, name: getName(route) };
+
+  if (role === 'Doctor') return <DoctorDashboard navigation={navigation} name={user.name} />;
 
   return <ApplicationShellScreen navigation={navigation} route={route} user={user} />;
 }
@@ -402,20 +403,38 @@ function PharmacyDashboard({ navigation }: any) {
 }
 
 function DoctorDashboard({ navigation, name }: any) {
-  const [dashboard, setDashboard] = useState<DoctorDashboardData | null>(null);
+  const [doctor, setDoctor] = useState<any>(null);
+  const [todayAppointments, setTodayAppointments] = useState<DoctorAppointment[]>([]);
+  const [upcomingAppointments, setUpcomingAppointments] = useState<DoctorAppointment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
 
-  const loadDashboard = async () => {
+  const loadDashboard = async (refresh = false) => {
     try {
-      setLoading(true);
+      if (refresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       setError('');
-      setDashboard(await getDoctorDashboard());
+      const [dashboardData, todayData, upcomingData] = await Promise.all([
+        getDoctorDashboard(),
+        getDoctorAppointments({ view: 'today' }),
+        getDoctorAppointments({ view: 'upcoming' }),
+      ]);
+      const byTime = (left: DoctorAppointment, right: DoctorAppointment) =>
+        new Date(left.appointment_date).getTime() - new Date(right.appointment_date).getTime();
+
+      setDoctor(dashboardData.doctor);
+      setTodayAppointments([...todayData].sort(byTime));
+      setUpcomingAppointments([...upcomingData].sort(byTime));
     } catch (loadError: any) {
       console.error('[Doctor Dashboard] Load error:', loadError.response?.data || loadError.message);
       setError(loadError.response?.data?.message || 'Unable to load doctor dashboard.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -423,42 +442,66 @@ function DoctorDashboard({ navigation, name }: any) {
     loadDashboard();
   }, []);
 
-  const metrics = dashboard?.metrics;
-  const doctor = dashboard?.doctor;
+  const completedToday = todayAppointments.filter((item) => item.status === 'Completed').length;
+  const cancelledToday = todayAppointments.filter((item) => item.status === 'Cancelled').length;
+  const totalPatientsToday = new Set(todayAppointments.map((item) => item.patient_id).filter(Boolean)).size;
+  const formatAppointmentTime = (value: string) =>
+    new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const getVisitReason = (item: DoctorAppointment) => item.notes?.trim() || 'No visit reason provided';
+
   return (
     <Screen>
-      <Content>
+      <Content refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadDashboard(true)} tintColor={colors.teal} />}>
         <Header title={doctor?.name || name || 'Doctor'} subtitle={doctor?.specialization || 'Clinical workspace'} navigation={navigation} avatar={(doctor?.name || name || 'DR').slice(0, 2).toUpperCase()} />
-        {loading ? <ActivityIndicator color={colors.teal} /> : null}
+        {loading ? (
+          <View style={local.stateCard}>
+            <ActivityIndicator color={colors.teal} />
+            <Text style={local.stateText}>Loading doctor dashboard...</Text>
+          </View>
+        ) : null}
         {error ? (
-          <TouchableOpacity activeOpacity={0.82} style={local.stateCard} onPress={loadDashboard}>
+          <TouchableOpacity activeOpacity={0.82} style={local.stateCard} onPress={() => loadDashboard()}>
             <Text style={local.errorText}>{error}</Text>
             <Text style={local.retryText}>Tap to retry</Text>
           </TouchableOpacity>
         ) : null}
         {grid(
           <>
-            <StatCard icon="calendar-outline" value={`${metrics?.todaysAppointments ?? '-'}`} label="Today's Appts" tone={colors.blue} />
-            <StatCard icon="time-outline" value={`${metrics?.pendingConsultations ?? '-'}`} label="Pending" tone={colors.orange} />
-            <StatCard icon="people-outline" value={`${metrics?.patientQueue ?? '-'}`} label="Queue" tone={colors.teal} />
-            <StatCard icon="flask-outline" value={`${metrics?.labRequests ?? '-'}`} label="Lab Requests" tone={colors.red} />
+            <StatCard icon="calendar-outline" value={`${todayAppointments.length}`} label="Today" tone={colors.blue} />
+            <StatCard icon="time-outline" value={`${upcomingAppointments.length}`} label="Upcoming" tone={colors.orange} />
+            <StatCard icon="checkmark-done-outline" value={`${completedToday}`} label="Completed" tone={colors.green} />
+            <StatCard icon="close-circle-outline" value={`${cancelledToday}`} label="Cancelled" tone={colors.red} />
+            <StatCard icon="people-outline" value={`${totalPatientsToday}`} label="Patients Today" tone={colors.teal} />
           </>,
         )}
-        <SectionHeader title="Today's Schedule" action="View All" onPress={() => navigation.navigate('Schedule')} />
-        {!loading && !error && dashboard?.upcomingAppointments.length === 0 ? <Text style={local.stateText}>No appointments scheduled.</Text> : null}
-        {(dashboard?.upcomingAppointments || []).map((item) => (
+        <SectionHeader title="Patient Queue" action="View Schedule" onPress={() => navigation.navigate('Schedule')} />
+        {!loading && !error && todayAppointments.length === 0 ? <Text style={local.stateText}>No patients scheduled for today.</Text> : null}
+        {todayAppointments.map((item) => (
           <ListRow
             key={item.id}
             title={item.patients?.name || 'Patient'}
-            subtitle={item.status}
-            meta={new Date(item.appointment_date).toLocaleString()}
+            subtitle={`Reason: ${getVisitReason(item)}`}
+            meta={`Time: ${formatAppointmentTime(item.appointment_date)}`}
+            status={item.status}
             icon="time-outline"
-            tone={item.status === 'Completed' ? colors.green : colors.blue}
+            tone={item.status === 'Completed' ? colors.green : item.status === 'Cancelled' ? colors.red : colors.blue}
             onPress={() => navigation.getParent()?.navigate('AppointmentDetails', { id: item.id, role: 'Doctor' })}
           />
         ))}
-        <ListRow title="Completed Today" subtitle={`${metrics?.completedToday ?? '-'} consultations completed`} icon="checkmark-done-outline" tone={colors.green} />
-        <ListRow title="Lab Requests" subtitle="Create or review lab requests" icon="flask-outline" tone={colors.red} onPress={() => navigation.getParent()?.navigate('DoctorLabTests')} />
+        <SectionHeader title="Upcoming Appointments" />
+        {!loading && !error && upcomingAppointments.length === 0 ? <Text style={local.stateText}>No upcoming appointments found.</Text> : null}
+        {upcomingAppointments.slice(0, 3).map((item) => (
+          <ListRow
+            key={item.id}
+            title={item.patients?.name || 'Patient'}
+            subtitle={getVisitReason(item)}
+            meta={new Date(item.appointment_date).toLocaleString()}
+            status={item.status}
+            icon="calendar-outline"
+            tone={item.status === 'Cancelled' ? colors.red : colors.orange}
+            onPress={() => navigation.getParent()?.navigate('AppointmentDetails', { id: item.id, role: 'Doctor' })}
+          />
+        ))}
       </Content>
     </Screen>
   );
