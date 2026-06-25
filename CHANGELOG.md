@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-06-26 — Sprint 4.2 doctor consultation workflow
+
+- Objective: Allow doctors to start, save, and complete a consultation from an appointment.
+- Reason: Add the first focused consultation workflow before prescriptions, lab requests, billing, EHR timeline, or patient history features.
+- Files modified: Doctor portal routes/controller, doctor service, app navigator, appointment detail screen, and changelog.
+- Files added: Doctor consultation screen.
+- Database changes: None; structured consultation fields are stored in the existing appointment doctor notes field until a dedicated migration is planned.
+- Backend changes: Added doctor-only consultation read/save/complete endpoints under the existing `/api/doctor/appointments/:id` portal and completion updates appointment status to `Completed`.
+- Validation/security improvements: Non-doctor roles are blocked by the existing doctor portal authorization gate; consultation saves validate safe text fields and never add delete behavior.
+- Testing performed: Pending after implementation.
+
 ## 2026-06-26 — Sprint 4.1 doctor dashboard and patient queue
 
 - Objective: Upgrade the Doctor dashboard with live appointment-backed metrics and today's patient queue.

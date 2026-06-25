@@ -5,6 +5,8 @@ const { supabase } = require('../config/supabase');
 // Shared status vocabularies prevent invalid state updates from reaching the database.
 const STATUSES = ['Pending', 'Confirmed', 'Checked In', 'In Consultation', 'Completed', 'Cancelled', 'No Show'];
 const LAB_STATUSES = ['Pending', 'Processing', 'Completed', 'Cancelled'];
+const CONSULTATION_NOTE_SCHEMA = 'medicore.consultation.v1';
+const CONSULTATION_FIELDS = ['chief_complaint', 'symptoms', 'diagnosis_summary', 'treatment_plan', 'doctor_notes'];
 
 // Daily metrics use a [start, next-day) window to avoid time-boundary double counting.
 const todayBounds = () => {
@@ -75,6 +77,107 @@ const appointmentSelect = `
   ),
   doctors:doctor_id ( id, name, specialization, email, phone, consultation_fee, is_available )
 `;
+
+const emptyConsultation = () => ({
+  chief_complaint: '',
+  symptoms: '',
+  diagnosis_summary: '',
+  treatment_plan: '',
+  doctor_notes: ''
+});
+
+const parseConsultationNotes = (doctorNotes) => {
+  if (!doctorNotes || typeof doctorNotes !== 'string') return emptyConsultation();
+
+  try {
+    const parsed = JSON.parse(doctorNotes);
+    if (parsed?.schema !== CONSULTATION_NOTE_SCHEMA) {
+      return { ...emptyConsultation(), doctor_notes: doctorNotes };
+    }
+
+    return CONSULTATION_FIELDS.reduce((consultation, field) => {
+      consultation[field] = typeof parsed[field] === 'string' ? parsed[field] : '';
+      return consultation;
+    }, emptyConsultation());
+  } catch (error) {
+    return { ...emptyConsultation(), doctor_notes: doctorNotes };
+  }
+};
+
+const mergeConsultationInput = (existingNotes, body) => {
+  const consultation = parseConsultationNotes(existingNotes);
+
+  CONSULTATION_FIELDS.forEach((field) => {
+    if (Object.prototype.hasOwnProperty.call(body || {}, field)) {
+      consultation[field] = typeof body[field] === 'string' ? body[field].trim() : '';
+    }
+  });
+
+  return consultation;
+};
+
+const serializeConsultationNotes = (consultation) => JSON.stringify({
+  schema: CONSULTATION_NOTE_SCHEMA,
+  ...consultation
+});
+
+const consultationResponse = (appointment) => {
+  const consultation = parseConsultationNotes(appointment.doctor_notes);
+  const safeAppointment = { ...appointment, doctor_notes: consultation.doctor_notes };
+
+  return {
+    appointment: safeAppointment,
+    consultation: {
+      id: appointment.id,
+      appointment_id: appointment.id,
+      patient_id: appointment.patient_id,
+      doctor_id: appointment.doctor_id,
+      status: appointment.status === 'Completed' ? 'Completed' : 'Draft',
+      updated_at: appointment.updated_at,
+      ...consultation
+    }
+  };
+};
+
+const persistConsultation = async (req, res, next, complete) => {
+  try {
+    const doctor = await requireDoctor(req, res);
+    if (!doctor) return;
+
+    const { data: existing, error: existingError } = await supabase
+      .from('appointments')
+      .select(appointmentSelect)
+      .eq('id', req.params.id)
+      .eq('doctor_id', doctor.id)
+      .single();
+    if (existingError || !existing) return errorResponse(res, 'Appointment not found.', 404);
+    if (existing.status === 'Completed' && !complete) return errorResponse(res, 'Completed consultations cannot be edited in this workflow.', 400);
+
+    const consultation = mergeConsultationInput(existing.doctor_notes, req.body);
+    const update = {
+      doctor_notes: serializeConsultationNotes(consultation),
+      updated_at: new Date().toISOString()
+    };
+    if (complete) update.status = 'Completed';
+
+    const { data, error } = await supabase
+      .from('appointments')
+      .update(update)
+      .eq('id', req.params.id)
+      .eq('doctor_id', doctor.id)
+      .select(appointmentSelect)
+      .single();
+    if (error || !data) return errorResponse(res, 'Failed to save consultation.', 500, error?.message);
+
+    return successResponse(
+      res,
+      complete ? 'Consultation completed successfully' : 'Consultation saved successfully',
+      consultationResponse(data)
+    );
+  } catch (error) {
+    next(error);
+  }
+};
 
 // Compose dashboard counts and the next few appointments in parallel for a single doctor.
 const getDashboard = async (req, res, next) => {
@@ -151,6 +254,27 @@ const getAppointment = async (req, res, next) => {
     next(error);
   }
 };
+
+const getConsultation = async (req, res, next) => {
+  try {
+    const doctor = await requireDoctor(req, res);
+    if (!doctor) return;
+    const { data, error } = await supabase
+      .from('appointments')
+      .select(appointmentSelect)
+      .eq('id', req.params.id)
+      .eq('doctor_id', doctor.id)
+      .single();
+    if (error || !data) return errorResponse(res, 'Appointment not found.', 404);
+    return successResponse(res, 'Consultation retrieved successfully', consultationResponse(data));
+  } catch (error) {
+    next(error);
+  }
+};
+
+const saveConsultation = (req, res, next) => persistConsultation(req, res, next, false);
+
+const completeConsultation = (req, res, next) => persistConsultation(req, res, next, true);
 
 const updateAppointmentStatus = async (req, res, next) => {
   try {
@@ -320,6 +444,9 @@ module.exports = {
   getDashboard,
   getAppointments,
   getAppointment,
+  getConsultation,
+  saveConsultation,
+  completeConsultation,
   updateAppointmentStatus,
   updateAppointmentNotes,
   getPatients,
