@@ -221,6 +221,31 @@ CREATE TABLE prescription_items (
 );
 
 -- ==========================================
+-- LAB REQUESTS (request groups for multiple lab tests)
+-- ==========================================
+
+CREATE TABLE lab_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    appointment_id UUID NOT NULL REFERENCES appointments(id) ON DELETE CASCADE,
+    patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+    doctor_id UUID NOT NULL REFERENCES doctors(id) ON DELETE CASCADE,
+    status VARCHAR(20) DEFAULT 'Draft' CHECK (status IN ('Draft', 'Submitted')),
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE lab_request_tests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    request_id UUID NOT NULL REFERENCES lab_requests(id) ON DELETE CASCADE,
+    test_name VARCHAR(255) NOT NULL,
+    priority VARCHAR(20) DEFAULT 'Routine' CHECK (priority IN ('Routine', 'Urgent', 'Stat')),
+    clinical_notes TEXT,
+    status VARCHAR(50) DEFAULT 'Pending' CHECK (status IN ('Pending', 'Collected', 'Processing', 'Completed', 'Cancelled')),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ==========================================
 -- AUDIT LOGS
 -- ==========================================
 

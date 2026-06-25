@@ -12,15 +12,19 @@ const {
   getAppointments,
   getConsultation,
   getDashboard,
+  getLabRequest,
   getLabTests,
   getPatient,
   getPatientConsultations,
+  getPatientLabRequests,
   getPatientPrescriptions,
   getPatients,
   getPrescription,
   getProfile,
   saveConsultation,
+  saveLabRequest,
   savePrescription,
+  submitLabRequest,
   updateAppointmentNotes,
   updateAppointmentStatus
 } = require('../controllers/doctorPortalController');
@@ -103,5 +107,11 @@ router.get('/appointments/:id/prescription', getPrescription);
 router.put('/appointments/:id/prescription', savePrescription);
 router.post('/prescriptions/:id/finalize', finalizePrescription);
 router.get('/patients/:patientId/prescriptions', getPatientPrescriptions);
+
+// Lab request management routes — attached to the doctor portal's authorization gate.
+router.get('/appointments/:id/lab-request', getLabRequest);
+router.put('/appointments/:id/lab-request', saveLabRequest);
+router.post('/lab-requests/:id/submit', submitLabRequest);
+router.get('/patients/:patientId/lab-requests', getPatientLabRequests);
 
 module.exports = router;
