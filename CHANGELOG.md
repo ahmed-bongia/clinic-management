@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-06-25 — Sprint 1B shell navigation safety
+
+- Objective: Harden shared shell navigation targets without changing tab behavior.
+- Reason: Prevent broken shell quick actions, activity links, and notification shortcuts from crashing the app as role shell config evolves.
+- Files modified: Application shell screen, app navigator tab invariant checks, and changelog.
+- Files added: Shared shell navigation validation helper.
+- Database changes: None.
+- Backend changes: None.
+- Validation/security improvements: Dev-only validation now warns for invalid shell targets, tabs above the five-tab limit, non-final Profile tabs, and Notifications mistakenly added to bottom tabs.
+- Testing performed: `npx tsc --noEmit`, `node --test` from backend with 0 discovered tests, direct backend JavaScript syntax check with `node --check`, and `git diff --check`; package-script checks are blocked on current `origin/main` because the expected `typecheck`, `test`, and `syntax` scripts are not defined there.
+
 ## 2026-06-25 — Sprint 1A.1 shared application shell
 
 - Objective: Add the first shared authenticated shell skeleton for all clinic roles.

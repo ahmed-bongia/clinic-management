@@ -38,6 +38,7 @@ import {
 } from '../screens/phase1/RoleScreens';
 import { Role } from '../ui/clinicData';
 import { useAuth } from '../context/AuthContext';
+import { warnRoleTabInvariantViolations } from '../shell/shellNavigation';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -92,6 +93,8 @@ const ROLE_TABS: Record<Role, TabConfig[]> = {
     { name: 'Profile', label: 'Profile', icon: 'person-outline', component: ProfileScreen },
   ],
 };
+
+warnRoleTabInvariantViolations(ROLE_TABS);
 
 // Custom tab bar mirrors React Navigation's tabPress event so listeners/preventDefault continue to work.
 function CustomTabBar({ state, descriptors, navigation }: any) {
