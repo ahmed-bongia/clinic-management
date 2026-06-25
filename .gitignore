@@ -22,3 +22,7 @@ frontend/.env
 backend/.env
 
 *.env
+# Personal VS Code configuration
+.vscode/mcp.json
+.vscode/launch.json
+*.code-workspace
