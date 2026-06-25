@@ -3,6 +3,20 @@ const { successResponse, errorResponse } = require('../utils/response');
 const { supabase } = require('../config/supabase');
 const { validateAppointmentSlot } = require('../services/appointmentAvailabilityService');
 
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_PATTERN = /^\d{2}:\d{2}(:\d{2})?$/;
+const REQUIRED_CREATE_FIELDS = ['patient_id', 'doctor_id', 'appointment_date', 'start_time', 'end_time'];
+
+const getMissingFields = (body, fields) => fields.filter((field) => !Object.prototype.hasOwnProperty.call(body || {}, field) || body[field] === '' || body[field] === null || body[field] === undefined);
+
+const normalizeTime = (timeValue) => (timeValue.length === 5 ? `${timeValue}:00` : timeValue);
+
+const buildAppointmentDateTime = (appointmentDate, timeValue) => {
+  if (!DATE_ONLY_PATTERN.test(appointmentDate) || !TIME_PATTERN.test(timeValue)) return null;
+  const combined = new Date(`${appointmentDate}T${normalizeTime(timeValue)}`);
+  return Number.isNaN(combined.getTime()) ? null : combined;
+};
+
 // Translate an authenticated user id into the patient/doctor record id stored on appointments.
 const getLinkedRecordId = async (table, userId) => {
   const { data, error } = await supabase
@@ -139,11 +153,21 @@ const createAppointment = async (req, res, next) => {
       return errorResponse(res, 'Database is not configured.', 503);
     }
 
-    const { patient_id, doctor_id, appointment_date, notes } = req.body;
-
-    if (!patient_id || !doctor_id || !appointment_date) {
-      return errorResponse(res, 'patient_id, doctor_id, and appointment_date are required.', 400);
+    const { patient_id, doctor_id, appointment_date, start_time, end_time, notes } = req.body;
+    const missingFields = getMissingFields(req.body, REQUIRED_CREATE_FIELDS);
+    if (missingFields.length) {
+      return errorResponse(res, `${missingFields.join(', ')} are required.`, 400);
     }
+
+    if (!DATE_ONLY_PATTERN.test(appointment_date)) {
+      return errorResponse(res, 'appointment_date must use YYYY-MM-DD format.', 400);
+    }
+
+    const startDateTime = buildAppointmentDateTime(appointment_date, start_time);
+    const endDateTime = buildAppointmentDateTime(appointment_date, end_time);
+    if (!startDateTime) return errorResponse(res, 'start_time must use HH:MM or HH:MM:SS format.', 400);
+    if (!endDateTime) return errorResponse(res, 'end_time must use HH:MM or HH:MM:SS format.', 400);
+    if (endDateTime <= startDateTime) return errorResponse(res, 'end_time must be after start_time.', 400);
 
     if (req.user.role === 'Patient') {
       const ownPatientId = await getLinkedRecordId('patients', req.user.id);
@@ -163,7 +187,7 @@ const createAppointment = async (req, res, next) => {
       return errorResponse(res, 'Patient not found.', 404);
     }
 
-    const slot = await validateAppointmentSlot({ doctorId: doctor_id, appointmentDate: appointment_date });
+    const slot = await validateAppointmentSlot({ doctorId: doctor_id, appointmentDate: startDateTime.toISOString() });
     if (!slot.ok) return errorResponse(res, slot.message, slot.status, slot.detail);
 
     const { data: newAppointment, error } = await supabase
@@ -239,10 +263,27 @@ const updateAppointment = async (req, res, next) => {
     }
     if (notes !== undefined) updateData.notes = notes;
     if (doctor_notes !== undefined) updateData.doctor_notes = doctor_notes;
-    if (appointment_date !== undefined) {
+
+    const timeFieldsProvided = ['appointment_date', 'start_time', 'end_time'].some((field) => Object.prototype.hasOwnProperty.call(req.body || {}, field));
+    if (timeFieldsProvided) {
+      const missingFields = getMissingFields(req.body, ['appointment_date', 'start_time', 'end_time']);
+      if (missingFields.length) {
+        return errorResponse(res, `${missingFields.join(', ')} are required.`, 400);
+      }
+
+      if (!DATE_ONLY_PATTERN.test(appointment_date)) {
+        return errorResponse(res, 'appointment_date must use YYYY-MM-DD format.', 400);
+      }
+
+      const startDateTime = buildAppointmentDateTime(appointment_date, req.body.start_time);
+      const endDateTime = buildAppointmentDateTime(appointment_date, req.body.end_time);
+      if (!startDateTime) return errorResponse(res, 'start_time must use HH:MM or HH:MM:SS format.', 400);
+      if (!endDateTime) return errorResponse(res, 'end_time must use HH:MM or HH:MM:SS format.', 400);
+      if (endDateTime <= startDateTime) return errorResponse(res, 'end_time must be after start_time.', 400);
+
       const slot = await validateAppointmentSlot({
         doctorId: existingAppointment.doctor_id,
-        appointmentDate: appointment_date,
+        appointmentDate: startDateTime.toISOString(),
         excludeAppointmentId: existingAppointment.id
       });
       if (!slot.ok) return errorResponse(res, slot.message, slot.status, slot.detail);

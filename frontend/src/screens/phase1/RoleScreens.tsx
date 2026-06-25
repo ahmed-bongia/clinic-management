@@ -35,7 +35,6 @@ import {
   PatientAppointment,
   PatientDashboardData,
   PatientRecordsData,
-  bookPatientAppointment,
   cancelPatientAppointment,
   getDoctorsForBooking,
   getPatientAppointments,
@@ -66,6 +65,7 @@ import {
 } from '../../services/receptionService';
 import { Medicine, getMedicines } from '../../services/pharmacyService';
 import { LabTestRecord, getLabTests, updateLabTest } from '../../services/labService';
+import { AppointmentPayload, createAppointment, updateAppointment } from '../../services/appointmentService';
 import { PatientRegistrationPayload, PatientRecord, createPatientRecord, listPatients, updatePatientRecord } from '../../services/patientDirectoryService';
 import ApplicationShellScreen from '../../shell/ApplicationShellScreen';
 import {
@@ -838,6 +838,31 @@ const buildPatientPayload = (form: Record<string, any>): PatientRegistrationPayl
   insurance_provider: optionalPatientValue(form.insurance_provider),
 });
 
+const formatLocalDate = (value?: string) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+
+const formatLocalTime = (value?: string) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+const addMinutesToTime = (time: string, minutes: number) => {
+  const [hours, mins] = time.split(':').map((part) => Number(part));
+  if (Number.isNaN(hours) || Number.isNaN(mins)) return '';
+  const date = new Date(2000, 0, 1, hours, mins);
+  date.setMinutes(date.getMinutes() + minutes);
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
 // ── Reception workflow: patient registration, scheduling, queue visibility, invoices, and payments. ──
 export function ReceptionPatientsScreen({ navigation }: any) {
   return <PatientDirectoryScreen navigation={navigation} title="Patients" subtitle="Registration and search" role="Receptionist" />;
@@ -975,22 +1000,29 @@ export function ReceptionAppointmentFormScreen({ navigation, route }: any) {
   const appointment = route.params?.appointment;
   const [patientsList, setPatientsList] = useState<ReceptionPatient[]>([]);
   const [doctorsList, setDoctorsList] = useState<any[]>([]);
+  const [patientSearch, setPatientSearch] = useState('');
   const [patientId, setPatientId] = useState(appointment?.patient_id || '');
   const [doctorId, setDoctorId] = useState(appointment?.doctor_id || '');
-  const [appointmentDate, setAppointmentDate] = useState(appointment?.appointment_date || '');
-  const [notes, setNotes] = useState(appointment?.notes || '');
+  const [appointmentDate, setAppointmentDate] = useState(formatLocalDate(appointment?.appointment_date));
+  const [startTime, setStartTime] = useState(formatLocalTime(appointment?.appointment_date));
+  const [endTime, setEndTime] = useState(formatLocalTime(appointment?.appointment_date) ? addMinutesToTime(formatLocalTime(appointment?.appointment_date), 30) : '');
+  const [reason, setReason] = useState(appointment?.notes || '');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
 
+  const loadPatients = async (query = patientSearch) => {
+    const list = await listPatients(query.trim() || undefined);
+    setPatientsList(list);
+    if (!patientId && list[0]) setPatientId(list[0].id);
+  };
+
   const loadOptions = async () => {
     try {
       setLoading(true);
-      const [patientOptions, doctorOptions] = await Promise.all([getReceptionPatients(), getDoctorsForBooking()]);
-      setPatientsList(patientOptions);
+      const [, doctorOptions] = await Promise.all([loadPatients(), getDoctorsForBooking()]);
       setDoctorsList(doctorOptions);
-      if (!patientId && patientOptions[0]) setPatientId(patientOptions[0].id);
       if (!doctorId && doctorOptions[0]) setDoctorId(doctorOptions[0].id);
     } catch (loadError: any) {
       console.error('[Reception Appointment Form] Load error:', loadError.response?.data || loadError.message);
@@ -1005,8 +1037,20 @@ export function ReceptionAppointmentFormScreen({ navigation, route }: any) {
     try {
       setSaving(true);
       setMessage('');
-      const payload = { patient_id: patientId, doctor_id: doctorId, appointment_date: appointmentDate, notes };
-      await (appointment?.id ? updateReceptionAppointment(appointment.id, payload) : createReceptionAppointment(payload));
+      if (!patientId || !doctorId || !appointmentDate || !startTime || !endTime) {
+        setIsError(true);
+        setMessage('patient_id, doctor_id, appointment_date, start_time, and end_time are required.');
+        return;
+      }
+      const payload: AppointmentPayload = {
+        patient_id: patientId,
+        doctor_id: doctorId,
+        appointment_date: appointmentDate,
+        start_time: startTime,
+        end_time: endTime,
+        notes: reason,
+      };
+      await (appointment?.id ? updateAppointment(appointment.id, payload) : createAppointment(payload));
       setIsError(false);
       setMessage(appointment?.id ? 'Appointment updated.' : 'Appointment booked.');
     } catch (saveError: any) {
@@ -1028,6 +1072,12 @@ export function ReceptionAppointmentFormScreen({ navigation, route }: any) {
         <Header title={appointment?.id ? 'Edit Appointment' : 'Book Appointment'} subtitle="Patient, doctor, and slot" navigation={navigation} />
         {loading ? <ActivityIndicator color={colors.teal} /> : null}
         <SectionHeader title="Patient" />
+        <View style={local.formCard}>
+          <TextInput value={patientSearch} onChangeText={setPatientSearch} placeholder="Search patient by name, phone, or email" placeholderTextColor="#8b97a8" style={local.input} autoCapitalize="none" />
+          <TouchableOpacity style={local.secondaryButton} onPress={() => loadPatients()}>
+            <Text style={local.secondaryButtonText}>Search Patients</Text>
+          </TouchableOpacity>
+        </View>
         <View style={local.chipRow}>
           {patientsList.slice(0, 20).map((patient) => (
             <TouchableOpacity key={patient.id} style={[local.chip, patientId === patient.id && local.chipActive]} onPress={() => setPatientId(patient.id)}>
@@ -1044,10 +1094,12 @@ export function ReceptionAppointmentFormScreen({ navigation, route }: any) {
           ))}
         </View>
         <View style={local.formCard}>
-          <TextInput value={appointmentDate} onChangeText={setAppointmentDate} placeholder="Appointment date, e.g. 2026-06-20T10:00:00+03:00" placeholderTextColor="#8b97a8" style={local.input} />
-          <TextInput value={notes} onChangeText={setNotes} placeholder="Appointment notes" placeholderTextColor="#8b97a8" style={[local.input, local.textArea]} multiline />
+          <TextInput value={appointmentDate} onChangeText={setAppointmentDate} placeholder="Appointment date, e.g. 2026-06-20" placeholderTextColor="#8b97a8" style={local.input} />
+          <TextInput value={startTime} onChangeText={setStartTime} placeholder="Start time, e.g. 10:00" placeholderTextColor="#8b97a8" style={local.input} />
+          <TextInput value={endTime} onChangeText={setEndTime} placeholder="End time, e.g. 10:30" placeholderTextColor="#8b97a8" style={local.input} />
+          <TextInput value={reason} onChangeText={setReason} placeholder="Reason for appointment" placeholderTextColor="#8b97a8" style={[local.input, local.textArea]} multiline />
           {message ? <Text style={isError ? local.errorText : local.successText}>{message}</Text> : null}
-          <TouchableOpacity disabled={saving || !patientId || !doctorId || !appointmentDate} style={local.secondaryButton} onPress={save}>
+          <TouchableOpacity disabled={saving || !patientId || !doctorId || !appointmentDate || !startTime || !endTime} style={local.secondaryButton} onPress={save}>
             <Text style={local.secondaryButtonText}>{saving ? 'Saving...' : 'Save Appointment'}</Text>
           </TouchableOpacity>
         </View>
@@ -1436,10 +1488,13 @@ export function PatientAppointmentDetailScreen({ navigation, route }: any) {
 }
 
 export function PatientBookAppointmentScreen({ navigation }: any) {
+  const [profile, setProfile] = useState<any | null>(null);
   const [doctorsList, setDoctorsList] = useState<any[]>([]);
   const [doctorId, setDoctorId] = useState('');
   const [appointmentDate, setAppointmentDate] = useState('');
-  const [notes, setNotes] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -1449,9 +1504,13 @@ export function PatientBookAppointmentScreen({ navigation }: any) {
     try {
       setLoading(true);
       setError('');
-      const list = await getDoctorsForBooking();
+      const [patientProfile, list] = await Promise.all([getPatientProfile(), getDoctorsForBooking()]);
+      setProfile(patientProfile);
       setDoctorsList(list);
       if (!doctorId && list[0]) setDoctorId(list[0].id);
+      if (!patientProfile?.id) {
+        throw new Error('Patient profile is unavailable.');
+      }
     } catch (loadError: any) {
       console.error('[Patient Booking] Doctors load error:', loadError.response?.data || loadError.message);
       setError(loadError.response?.data?.message || 'Unable to load doctors.');
@@ -1465,7 +1524,18 @@ export function PatientBookAppointmentScreen({ navigation }: any) {
       setSaving(true);
       setError('');
       setSuccess('');
-      await bookPatientAppointment({ doctor_id: doctorId, appointment_date: appointmentDate, notes });
+      if (!profile?.id || !doctorId || !appointmentDate || !startTime || !endTime) {
+        setError('patient profile, doctor, appointment date, start time, and end time are required.');
+        return;
+      }
+      await createAppointment({
+        patient_id: profile.id,
+        doctor_id: doctorId,
+        appointment_date: appointmentDate,
+        start_time: startTime,
+        end_time: endTime,
+        notes: reason,
+      });
       setSuccess('Appointment booked successfully.');
     } catch (saveError: any) {
       console.error('[Patient Booking] Save error:', saveError.response?.data || saveError.message);
@@ -1500,10 +1570,12 @@ export function PatientBookAppointmentScreen({ navigation }: any) {
           ))}
         </View>
         <View style={local.formCard}>
-          <TextInput value={appointmentDate} onChangeText={setAppointmentDate} placeholder="Appointment date, e.g. 2026-06-20T10:00:00+03:00" placeholderTextColor="#8b97a8" style={local.input} />
-          <TextInput value={notes} onChangeText={setNotes} placeholder="Notes for the clinic" placeholderTextColor="#8b97a8" style={[local.input, local.textArea]} multiline />
+          <TextInput value={appointmentDate} onChangeText={setAppointmentDate} placeholder="Appointment date, e.g. 2026-06-20" placeholderTextColor="#8b97a8" style={local.input} />
+          <TextInput value={startTime} onChangeText={setStartTime} placeholder="Start time, e.g. 10:00" placeholderTextColor="#8b97a8" style={local.input} />
+          <TextInput value={endTime} onChangeText={setEndTime} placeholder="End time, e.g. 10:30" placeholderTextColor="#8b97a8" style={local.input} />
+          <TextInput value={reason} onChangeText={setReason} placeholder="Reason for appointment" placeholderTextColor="#8b97a8" style={[local.input, local.textArea]} multiline />
           {success ? <Text style={local.successText}>{success}</Text> : null}
-          <TouchableOpacity disabled={saving || !doctorId || !appointmentDate} style={local.secondaryButton} onPress={submit}>
+          <TouchableOpacity disabled={saving || !doctorId || !appointmentDate || !startTime || !endTime} style={local.secondaryButton} onPress={submit}>
             <Text style={local.secondaryButtonText}>{saving ? 'Booking...' : 'Confirm Booking'}</Text>
           </TouchableOpacity>
         </View>
