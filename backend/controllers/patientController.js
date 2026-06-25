@@ -2,6 +2,60 @@
 const { successResponse, errorResponse } = require('../utils/response');
 const { supabase } = require('../config/supabase');
 
+const PATIENT_DEMOGRAPHIC_FIELDS = [
+  'name',
+  'email',
+  'phone',
+  'gender',
+  'date_of_birth',
+  'blood_type',
+  'address',
+  'emergency_contact',
+  'insurance_provider'
+];
+
+const getUnsupportedPatientFields = (body) =>
+  Object.keys(body || {}).filter((field) => !PATIENT_DEMOGRAPHIC_FIELDS.includes(field));
+
+const normalizeOptionalString = (value) => {
+  if (value === undefined || value === null || value === '') return null;
+  return String(value).trim() || null;
+};
+
+const normalizeEmail = (email) => {
+  const value = normalizeOptionalString(email);
+  return value ? value.toLowerCase() : null;
+};
+
+const buildPatientInsertData = (body) => ({
+  name: String(body.name).trim(),
+  email: normalizeEmail(body.email),
+  phone: normalizeOptionalString(body.phone),
+  gender: normalizeOptionalString(body.gender) || 'Unspecified',
+  date_of_birth: normalizeOptionalString(body.date_of_birth),
+  blood_type: normalizeOptionalString(body.blood_type),
+  address: normalizeOptionalString(body.address),
+  emergency_contact: normalizeOptionalString(body.emergency_contact),
+  insurance_provider: normalizeOptionalString(body.insurance_provider),
+  user_id: null
+});
+
+const buildPatientUpdateData = (body) => {
+  const updateData = { updated_at: new Date().toISOString() };
+
+  if (body.name !== undefined) updateData.name = String(body.name).trim();
+  if (body.email !== undefined) updateData.email = normalizeEmail(body.email);
+  if (body.phone !== undefined) updateData.phone = normalizeOptionalString(body.phone);
+  if (body.gender !== undefined) updateData.gender = normalizeOptionalString(body.gender) || 'Unspecified';
+  if (body.date_of_birth !== undefined) updateData.date_of_birth = normalizeOptionalString(body.date_of_birth);
+  if (body.blood_type !== undefined) updateData.blood_type = normalizeOptionalString(body.blood_type);
+  if (body.address !== undefined) updateData.address = normalizeOptionalString(body.address);
+  if (body.emergency_contact !== undefined) updateData.emergency_contact = normalizeOptionalString(body.emergency_contact);
+  if (body.insurance_provider !== undefined) updateData.insurance_provider = normalizeOptionalString(body.insurance_provider);
+
+  return updateData;
+};
+
 /**
  * GET /api/patients
  * List all patients
@@ -88,30 +142,16 @@ const createPatient = async (req, res, next) => {
       return errorResponse(res, 'Database is not configured.', 503);
     }
 
-    const {
-      name, email, phone, gender, date_of_birth,
-      blood_type, address, emergency_contact,
-      allergies, medical_conditions, insurance_provider, user_id
-    } = req.body;
+    const unsupportedFields = getUnsupportedPatientFields(req.body);
+    if (unsupportedFields.length) {
+      return errorResponse(res, `Unsupported patient registration fields: ${unsupportedFields.join(', ')}`, 400);
+    }
 
-    if (!name) {
+    if (!req.body.name) {
       return errorResponse(res, 'Patient name is required.', 400);
     }
 
-    const insertData = {
-      name: name.trim(),
-      email: email ? email.toLowerCase().trim() : null,
-      phone: phone || null,
-      gender: gender || 'Unspecified',
-      date_of_birth: date_of_birth || null,
-      blood_type: blood_type || null,
-      address: address || null,
-      emergency_contact: emergency_contact || null,
-      allergies: allergies || null,
-      medical_conditions: medical_conditions || null,
-      insurance_provider: insurance_provider || null,
-      user_id: user_id || null
-    };
+    const insertData = buildPatientInsertData(req.body);
 
     const { data: newPatient, error } = await supabase
       .from('patients')
@@ -121,7 +161,7 @@ const createPatient = async (req, res, next) => {
 
     if (error) {
       console.error('[PATIENTS] Create error:', error.message);
-      if (error.message.includes('patients_email_unique')) {
+      if (error.message.includes('patients_email_unique') || error.code === '23505') {
         return errorResponse(res, 'A patient with this email already exists.', 409);
       }
       return errorResponse(res, 'Failed to create patient.', 500);
@@ -150,25 +190,17 @@ const updatePatient = async (req, res, next) => {
       return errorResponse(res, 'Database is not configured.', 503);
     }
 
-    const {
-      name, email, phone, gender, date_of_birth,
-      blood_type, address, emergency_contact,
-      allergies, medical_conditions, insurance_provider
-    } = req.body;
+    const unsupportedFields = getUnsupportedPatientFields(req.body);
+    if (unsupportedFields.length) {
+      return errorResponse(res, `Unsupported patient registration fields: ${unsupportedFields.join(', ')}`, 400);
+    }
 
-    const updateData = { updated_at: new Date().toISOString() };
+    const hasAllowedField = PATIENT_DEMOGRAPHIC_FIELDS.some((field) => Object.prototype.hasOwnProperty.call(req.body, field));
+    if (!hasAllowedField) {
+      return errorResponse(res, 'At least one patient demographic field is required.', 400);
+    }
 
-    if (name !== undefined) updateData.name = name.trim();
-    if (email !== undefined) updateData.email = email ? email.toLowerCase().trim() : null;
-    if (phone !== undefined) updateData.phone = phone;
-    if (gender !== undefined) updateData.gender = gender;
-    if (date_of_birth !== undefined) updateData.date_of_birth = date_of_birth;
-    if (blood_type !== undefined) updateData.blood_type = blood_type;
-    if (address !== undefined) updateData.address = address;
-    if (emergency_contact !== undefined) updateData.emergency_contact = emergency_contact;
-    if (allergies !== undefined) updateData.allergies = allergies;
-    if (medical_conditions !== undefined) updateData.medical_conditions = medical_conditions;
-    if (insurance_provider !== undefined) updateData.insurance_provider = insurance_provider;
+    const updateData = buildPatientUpdateData(req.body);
 
     let query = supabase
       .from('patients')
@@ -183,7 +215,7 @@ const updatePatient = async (req, res, next) => {
     const { data: updatedPatient, error } = await query.select('*').single();
 
     if (error || !updatedPatient) {
-      if (error && error.message.includes('patients_email_unique')) {
+      if (error && (error.message.includes('patients_email_unique') || error.code === '23505')) {
         return errorResponse(res, 'A patient with this email already exists.', 409);
       }
       return errorResponse(res, 'Patient not found or update failed.', 404);
