@@ -162,49 +162,59 @@ function SessionRestoreScreen() {
   );
 }
 
-// Stack screens hold flows that drill beyond a tab; AuthContext decides whether boot lands on Login or MainTabs.
+function AuthStack() {
+  return (
+    <Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="Register" component={RegisterScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function AuthenticatedStack({ user }: { user: NonNullable<ReturnType<typeof useAuth>['user']> }) {
+  return (
+    <Stack.Navigator initialRouteName="MainTabs" screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="MainTabs" component={MainTabNavigator} initialParams={{ user }} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} />
+      <Stack.Screen name="AdminUsers" component={AdminUsersScreen} />
+      <Stack.Screen name="ActiveStaff" component={ActiveStaffScreen} />
+      <Stack.Screen name="ProfileInformation" component={ProfileInformationScreen} />
+      <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
+      <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
+      <Stack.Screen name="AppSettings" component={AppSettingsScreen} />
+      <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
+      <Stack.Screen name="AppointmentDetails" component={AppointmentDetailsScreen} />
+      <Stack.Screen name="ConsultationHistory" component={ConsultationHistoryScreen} />
+      <Stack.Screen name="DoctorConsultation" component={DoctorConsultationScreen} />
+      <Stack.Screen name="DoctorPatientDetail" component={DoctorPatientDetailScreen} />
+      <Stack.Screen name="DoctorLabTests" component={DoctorLabTestsScreen} />
+      <Stack.Screen name="PatientBookAppointment" component={PatientBookAppointmentScreen} />
+      <Stack.Screen name="PatientLabResults" component={PatientLabResultsScreen} />
+      <Stack.Screen name="ReceptionPatientForm" component={ReceptionPatientFormScreen} />
+      <Stack.Screen name="ReceptionAppointmentForm" component={ReceptionAppointmentFormScreen} />
+      <Stack.Screen name="ReceptionWaitingRoom" component={ReceptionWaitingRoomScreen} />
+      <Stack.Screen name="ReceptionInvoiceForm" component={ReceptionInvoiceFormScreen} />
+      <Stack.Screen name="ReceptionInvoicePayment" component={ReceptionInvoicePaymentScreen} />
+      <Stack.Screen name="PatientDetails" component={PatientDetailsScreen} />
+      <Stack.Screen name="DoctorLabRequest" component={LabRequestScreen} />
+      <Stack.Screen name="DoctorPrescription" component={PrescriptionScreen} />
+      <Stack.Screen name="LabRequestDetail" component={LabRequestDetailScreen} />
+      <Stack.Screen name="ModuleDetail" component={ModuleDetailScreen} />
+    </Stack.Navigator>
+  );
+}
+
+// AuthContext decides whether boot lands on Login or MainTabs.
 export default function AppNavigator() {
   const { isAuthenticated, isRestoring, user } = useAuth();
-  const initialRouteName = isRestoring ? 'SessionRestore' : isAuthenticated ? 'MainTabs' : 'Login';
+
+  if (isRestoring) {
+    return <SessionRestoreScreen />;
+  }
 
   return (
     <NavigationContainer>
-      <Stack.Navigator key={initialRouteName} initialRouteName={initialRouteName} screenOptions={{ headerShown: false }}>
-        {isRestoring ? (
-          <Stack.Screen name="SessionRestore" component={SessionRestoreScreen} />
-        ) : (
-          <>
-            <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="Register" component={RegisterScreen} />
-            <Stack.Screen name="MainTabs" component={MainTabNavigator} initialParams={{ user }} />
-            <Stack.Screen name="Notifications" component={NotificationsScreen} />
-            <Stack.Screen name="AdminUsers" component={AdminUsersScreen} />
-            <Stack.Screen name="ActiveStaff" component={ActiveStaffScreen} />
-            <Stack.Screen name="ProfileInformation" component={ProfileInformationScreen} />
-            <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
-            <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
-            <Stack.Screen name="AppSettings" component={AppSettingsScreen} />
-            <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
-            <Stack.Screen name="AppointmentDetails" component={AppointmentDetailsScreen} />
-            <Stack.Screen name="ConsultationHistory" component={ConsultationHistoryScreen} />
-            <Stack.Screen name="DoctorConsultation" component={DoctorConsultationScreen} />
-            <Stack.Screen name="DoctorPatientDetail" component={DoctorPatientDetailScreen} />
-            <Stack.Screen name="DoctorLabTests" component={DoctorLabTestsScreen} />
-            <Stack.Screen name="PatientBookAppointment" component={PatientBookAppointmentScreen} />
-            <Stack.Screen name="PatientLabResults" component={PatientLabResultsScreen} />
-            <Stack.Screen name="ReceptionPatientForm" component={ReceptionPatientFormScreen} />
-            <Stack.Screen name="ReceptionAppointmentForm" component={ReceptionAppointmentFormScreen} />
-            <Stack.Screen name="ReceptionWaitingRoom" component={ReceptionWaitingRoomScreen} />
-            <Stack.Screen name="ReceptionInvoiceForm" component={ReceptionInvoiceFormScreen} />
-            <Stack.Screen name="ReceptionInvoicePayment" component={ReceptionInvoicePaymentScreen} />
-            <Stack.Screen name="PatientDetails" component={PatientDetailsScreen} />
-            <Stack.Screen name="DoctorLabRequest" component={LabRequestScreen} />
-            <Stack.Screen name="DoctorPrescription" component={PrescriptionScreen} />
-            <Stack.Screen name="LabRequestDetail" component={LabRequestDetailScreen} />
-            <Stack.Screen name="ModuleDetail" component={ModuleDetailScreen} />
-          </>
-        )}
-      </Stack.Navigator>
+      {isAuthenticated && user ? <AuthenticatedStack user={user} /> : <AuthStack />}
     </NavigationContainer>
   );
 }
