@@ -252,6 +252,36 @@ const getRecords = async (req, res, next) => {
   }
 };
 
+const prescriptionSelect = `
+  id,
+  appointment_id,
+  doctor_id,
+  status,
+  notes,
+  created_at,
+  doctors:doctor_id ( id, name, specialization ),
+  prescription_items ( id, medicine_name, dosage, frequency, duration, instructions )
+`;
+
+const getPrescriptions = async (req, res, next) => {
+  try {
+    const patient = await requirePatient(req, res);
+    if (!patient) return;
+
+    const { data, error } = await supabase
+      .from('prescriptions')
+      .select(prescriptionSelect)
+      .eq('patient_id', patient.id)
+      .eq('status', 'Finalized')
+      .order('created_at', { ascending: false });
+
+    if (error) return errorResponse(res, 'Failed to retrieve prescriptions.', 500, error.message);
+    return successResponse(res, 'Patient prescriptions retrieved successfully', data || []);
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getLabResults = async (req, res, next) => {
   try {
     const patient = await requirePatient(req, res);
@@ -338,6 +368,7 @@ module.exports = {
   getAppointments,
   getDashboard,
   getLabResults,
+  getPrescriptions,
   getProfile,
   getRecords,
   updateProfile

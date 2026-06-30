@@ -33,12 +33,14 @@ import {
 import {
   PatientAppointment,
   PatientDashboardData,
+  PatientPrescription,
   PatientRecordsData,
   cancelPatientAppointment,
   getDoctorsForBooking,
   getPatientAppointments,
   getPatientDashboard,
   getPatientLabResults,
+  getPatientPrescriptions,
   getPatientProfile,
   getPatientRecords,
   updatePatientProfile,
@@ -1650,6 +1652,8 @@ export function PatientBookAppointmentScreen({ navigation }: any) {
 
 export function PatientRecordsScreen({ navigation }: any) {
   const [records, setRecords] = useState<PatientRecordsData | null>(null);
+  const [prescriptions, setPrescriptions] = useState<PatientPrescription[]>([]);
+  const [expandedPrescriptions, setExpandedPrescriptions] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -1657,7 +1661,12 @@ export function PatientRecordsScreen({ navigation }: any) {
     try {
       setLoading(true);
       setError('');
-      setRecords(await getPatientRecords());
+      const [recordsData, prescriptionsData] = await Promise.all([
+        getPatientRecords(),
+        getPatientPrescriptions(),
+      ]);
+      setRecords(recordsData);
+      setPrescriptions(prescriptionsData);
     } catch (loadError: any) {
       console.error('[Patient Records] Load error:', loadError.response?.data || loadError.message);
       setError(loadError.response?.data?.message || 'Unable to load medical records.');
@@ -1669,6 +1678,15 @@ export function PatientRecordsScreen({ navigation }: any) {
   useEffect(() => {
     load();
   }, []);
+
+  const toggleExpand = (id: string) => {
+    setExpandedPrescriptions((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const profile = records?.profile;
 
@@ -1692,6 +1710,37 @@ export function PatientRecordsScreen({ navigation }: any) {
             <ListRow title="Emergency Contact" subtitle={profile.emergency_contact || 'Not recorded'} icon="call-outline" tone={colors.green} />
           </>
         ) : null}
+        <SectionHeader title="Prescriptions" />
+        {!loading && !error && prescriptions.length === 0 ? <Text style={local.stateText}>No prescriptions found.</Text> : null}
+        {prescriptions.map((prescription) => {
+          const expanded = expandedPrescriptions.has(prescription.id);
+          return (
+            <View key={prescription.id}>
+              <ListRow
+                title={prescription.doctors?.name || 'Doctor'}
+                subtitle={prescription.doctors?.specialization || ''}
+                meta={new Date(prescription.created_at).toLocaleDateString()}
+                status={prescription.status}
+                icon="medkit-outline"
+                tone={colors.green}
+                onPress={() => toggleExpand(prescription.id)}
+              />
+              {expanded ? (
+                <View style={{ paddingLeft: 56, paddingRight: 14, marginBottom: 10 }}>
+                  {prescription.notes ? <Text style={local.stateText}>{prescription.notes}</Text> : null}
+                  {prescription.prescription_items.map((item) => (
+                    <View key={item.id} style={{ backgroundColor: colors.surface, borderRadius: 12, padding: 12, marginTop: 8, borderWidth: 1, borderColor: colors.line }}>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: colors.ink }}>{item.medicine_name}</Text>
+                      <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{item.dosage} — {item.frequency}</Text>
+                      <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>Duration: {item.duration}</Text>
+                      {item.instructions ? <Text style={{ fontSize: 11, color: colors.muted, marginTop: 4 }}>Note: {item.instructions}</Text> : null}
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          );
+        })}
         <SectionHeader title="Appointment History" />
         {!loading && !error && records?.appointmentHistory.length === 0 ? <Text style={local.stateText}>No appointment history found.</Text> : null}
         {records?.appointmentHistory.map((item) => (

@@ -50,6 +50,33 @@ export const bookPatientAppointment = async (payload: { doctor_id: string; appoi
 export const cancelPatientAppointment = async (id: string): Promise<PatientAppointment> =>
   unwrap(await api.patch(`/patient/appointments/${id}/cancel`));
 
+export interface PatientPrescriptionItem {
+  id: string;
+  medicine_name: string;
+  dosage: string;
+  frequency: string;
+  duration: string;
+  instructions?: string | null;
+}
+
+export interface PatientPrescription {
+  id: string;
+  appointment_id: string;
+  doctor_id: string;
+  status: string;
+  notes?: string | null;
+  created_at: string;
+  doctors?: {
+    id: string;
+    name: string;
+    specialization: string;
+  };
+  prescription_items: PatientPrescriptionItem[];
+}
+
+export const getPatientPrescriptions = async (): Promise<PatientPrescription[]> =>
+  unwrap(await api.get('/patient/prescriptions'));
+
 export const getPatientRecords = async (): Promise<PatientRecordsData> => unwrap(await api.get('/patient/records'));
 
 export const getPatientLabResults = async (): Promise<any[]> => unwrap(await api.get('/patient/lab-results'));

@@ -8,6 +8,7 @@ const {
   getAppointments,
   getDashboard,
   getLabResults,
+  getPrescriptions,
   getProfile,
   getRecords,
   updateProfile
@@ -24,6 +25,7 @@ router.get('/appointments', getAppointments);
 router.post('/appointments', createAppointment);
 router.patch('/appointments/:id/cancel', cancelAppointment);
 router.get('/records', getRecords);
+router.get('/prescriptions', getPrescriptions);
 router.get('/lab-results', getLabResults);
 router.get('/profile', getProfile);
 router.put('/profile', updateProfile);
