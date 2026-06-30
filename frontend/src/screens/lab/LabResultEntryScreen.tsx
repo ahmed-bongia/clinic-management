@@ -1,19 +1,21 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { ActivityIndicator, Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getLabRequest, getResults, saveResults, completeResults, LabRequestDetail, LabResult } from '../../services/labService';
+import { getLabRequest, getResults, saveResults, completeResults, verifyResults, LabRequestDetail, LabResult } from '../../services/labService';
 import { Content, Screen, SectionHeader, colors } from '../../ui/ClinicComponents';
 
 const ABNORMAL_FLAGS = ['', 'Normal', 'Low', 'High', 'Critical', 'Abnormal'];
 
 const statusTone = (status?: string) => {
+  if (status === 'Verified') return colors.teal;
   if (status === 'Completed') return colors.green;
   if (status === 'Draft') return colors.orange;
   return colors.muted;
 };
 
 export default function LabResultEntryScreen({ navigation, route }: any) {
-  const { requestId } = route.params as { requestId: string };
+  const { requestId, mode } = route.params as { requestId: string; mode?: string };
+  const isVerify = mode === 'verify';
   const [item, setItem] = useState<LabRequestDetail | null>(null);
   const [resultMap, setResultMap] = useState<Record<string, LabResult>>({});
   const [formValues, setFormValues] = useState<Record<string, { result_value: string; unit: string; reference_range: string; abnormal_flag: string; comments: string }>>({});
@@ -112,6 +114,20 @@ export default function LabResultEntryScreen({ navigation, route }: any) {
     }
   };
 
+  const handleVerify = async () => {
+    try {
+      setSaving(true);
+      await verifyResults(requestId);
+      Alert.alert('Verified', 'Lab results have been verified.', [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+    } catch (err: any) {
+      Alert.alert('Error', err.response?.data?.message || 'Unable to verify results.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const doComplete = async () => {
     try {
       setSaving(true);
@@ -178,6 +194,12 @@ export default function LabResultEntryScreen({ navigation, route }: any) {
     color: colors.ink,
   };
 
+  const readOnlyInputStyle = {
+    ...inputStyle,
+    backgroundColor: colors.bg,
+    color: colors.muted,
+  };
+
   return (
     <Screen>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 18, paddingBottom: 130 }}>
@@ -187,7 +209,7 @@ export default function LabResultEntryScreen({ navigation, route }: any) {
         </TouchableOpacity>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22, marginTop: 8 }}>
-          <Text style={{ fontSize: 22, fontWeight: '800', color: colors.ink, flex: 1 }}>Enter Results</Text>
+          <Text style={{ fontSize: 22, fontWeight: '800', color: colors.ink, flex: 1 }}>{isVerify ? 'Verify Results' : 'Enter Results'}</Text>
           <View style={{ borderRadius: 12, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: `${statusTone(item.status)}18` }}>
             <Text style={{ fontSize: 12, fontWeight: '800', color: statusTone(item.status) }}>{item.status}</Text>
           </View>
@@ -224,7 +246,8 @@ export default function LabResultEntryScreen({ navigation, route }: any) {
                   placeholderTextColor="#8b97a8"
                   value={val.result_value}
                   onChangeText={(v) => updateField(test.id, 'result_value', v)}
-                  style={inputStyle}
+                  style={isVerify ? readOnlyInputStyle : inputStyle}
+                  editable={!isVerify}
                 />
 
                 <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
@@ -235,7 +258,8 @@ export default function LabResultEntryScreen({ navigation, route }: any) {
                       placeholderTextColor="#8b97a8"
                       value={val.unit}
                       onChangeText={(v) => updateField(test.id, 'unit', v)}
-                      style={inputStyle}
+                      style={isVerify ? readOnlyInputStyle : inputStyle}
+                      editable={!isVerify}
                     />
                   </View>
                   <View style={{ flex: 1 }}>
@@ -245,27 +269,29 @@ export default function LabResultEntryScreen({ navigation, route }: any) {
                       placeholderTextColor="#8b97a8"
                       value={val.reference_range}
                       onChangeText={(v) => updateField(test.id, 'reference_range', v)}
-                      style={inputStyle}
+                      style={isVerify ? readOnlyInputStyle : inputStyle}
+                      editable={!isVerify}
                     />
                   </View>
                 </View>
 
                 <Text style={{ fontSize: 12, fontWeight: '700', color: colors.muted, marginBottom: 6, marginTop: 12 }}>Abnormal Flag</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {ABNORMAL_FLAGS.map((flag) => {
+                  {ABNORMAL_FLAGS.filter((f) => !isVerify || f === '' || f === val.abnormal_flag).map((flag) => {
                     const active = val.abnormal_flag === flag;
                     const isClear = flag === '';
                     return (
                       <TouchableOpacity
                         key={flag}
-                        onPress={() => updateField(test.id, 'abnormal_flag', isClear ? '' : flag)}
+                        onPress={() => { if (!isVerify) updateField(test.id, 'abnormal_flag', isClear ? '' : flag); }}
                         style={{
                           paddingHorizontal: 14,
                           paddingVertical: 8,
                           borderRadius: 10,
-                          backgroundColor: active ? colors.teal : colors.bg,
+                          backgroundColor: active ? (isVerify ? colors.teal : colors.teal) : colors.bg,
                           borderWidth: 1,
                           borderColor: active ? colors.teal : colors.line,
+                          opacity: isVerify && !active ? 0.5 : 1,
                         }}
                       >
                         <Text style={{ fontSize: 12, fontWeight: '700', color: active ? '#fff' : colors.muted }}>
@@ -284,29 +310,53 @@ export default function LabResultEntryScreen({ navigation, route }: any) {
                   onChangeText={(v) => updateField(test.id, 'comments', v)}
                   multiline
                   numberOfLines={3}
-                  style={[inputStyle, { height: 72, paddingTop: 12, textAlignVertical: 'top' }]}
+                  style={[isVerify ? readOnlyInputStyle : inputStyle, { height: 72, paddingTop: 12, textAlignVertical: 'top' }]}
+                  editable={!isVerify}
                 />
+
+                {result?.verified_by ? (
+                  <Text style={{ fontSize: 11, color: colors.teal, marginTop: 8, fontStyle: 'italic' }}>
+                    Verified
+                  </Text>
+                ) : null}
               </View>
             </View>
           );
         })}
 
-        <View style={{ marginTop: 28, gap: 12 }}>
-          <TouchableOpacity
-            onPress={handleSaveDraft}
-            disabled={saving}
-            style={{ height: 52, borderRadius: 16, backgroundColor: colors.teal, alignItems: 'center', justifyContent: 'center' }}
-          >
-            {saving ? <ActivityIndicator color="#fff" /> : <Text style={{ fontSize: 15, fontWeight: '800', color: '#fff' }}>Save Draft</Text>}
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={handleComplete}
-            disabled={saving}
-            style={{ height: 52, borderRadius: 16, backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center' }}
-          >
-            {saving ? <ActivityIndicator color="#fff" /> : <Text style={{ fontSize: 15, fontWeight: '800', color: '#fff' }}>Complete Results</Text>}
-          </TouchableOpacity>
-        </View>
+        {isVerify ? (
+          <View style={{ marginTop: 28, gap: 12 }}>
+            <TouchableOpacity
+              onPress={() => {
+                Alert.alert('Verify Results', 'Are you sure you want to verify all completed results?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Verify', onPress: handleVerify },
+                ]);
+              }}
+              disabled={saving}
+              style={{ height: 52, borderRadius: 16, backgroundColor: colors.teal, alignItems: 'center', justifyContent: 'center' }}
+            >
+              {saving ? <ActivityIndicator color="#fff" /> : <Text style={{ fontSize: 15, fontWeight: '800', color: '#fff' }}>Verify Results</Text>}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={{ marginTop: 28, gap: 12 }}>
+            <TouchableOpacity
+              onPress={handleSaveDraft}
+              disabled={saving}
+              style={{ height: 52, borderRadius: 16, backgroundColor: colors.teal, alignItems: 'center', justifyContent: 'center' }}
+            >
+              {saving ? <ActivityIndicator color="#fff" /> : <Text style={{ fontSize: 15, fontWeight: '800', color: '#fff' }}>Save Draft</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleComplete}
+              disabled={saving}
+              style={{ height: 52, borderRadius: 16, backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center' }}
+            >
+              {saving ? <ActivityIndicator color="#fff" /> : <Text style={{ fontSize: 15, fontWeight: '800', color: '#fff' }}>Complete Results</Text>}
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
     </Screen>
   );

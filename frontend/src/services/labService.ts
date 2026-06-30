@@ -96,6 +96,8 @@ export interface LabResult {
   abnormal_flag?: string;
   comments?: string;
   entered_by?: string;
+  verified_by?: string;
+  verified_at?: string;
   status: string;
   created_at?: string;
   updated_at?: string;
@@ -110,3 +112,6 @@ export const saveResults = async (requestId: string, results: Partial<LabResult>
 
 export const completeResults = async (requestId: string): Promise<{ all_tests_completed: boolean }> =>
   unwrap(await api.patch(`/lab/requests/${requestId}/results/complete`));
+
+export const verifyResults = async (requestId: string): Promise<{ verified_count: number }> =>
+  unwrap(await api.patch(`/lab/requests/${requestId}/results/verify`));

@@ -790,6 +790,88 @@ const completeLabResults = async (req, res, next) => {
   }
 };
 
+/**
+ * PATCH /api/lab/requests/:id/results/verify
+ * Verify all completed results for a lab request.
+ * Only transitions Completed → Verified; leaves lab_request.status as 'Completed'
+ * (Verified is not valid for lab_requests CHECK constraint).
+ */
+const verifyLabResults = async (req, res, next) => {
+  try {
+    if (!supabase) return errorResponse(res, 'Database is not configured.', 503);
+
+    const { id } = req.params;
+
+    const { data: labRequest, error: fetchError } = await supabase
+      .from('lab_requests')
+      .select('id, status')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !labRequest) {
+      return errorResponse(res, 'Lab request not found.', 404);
+    }
+
+    if (labRequest.status !== 'Completed') {
+      return errorResponse(res, 'Only completed lab requests can be verified.', 400);
+    }
+
+    // Check all requested tests have results
+    const { data: allTests } = await supabase
+      .from('lab_request_tests')
+      .select('id')
+      .eq('lab_request_id', id);
+
+    const { data: allResults } = await supabase
+      .from('lab_results')
+      .select('id, status, lab_request_test_id')
+      .eq('lab_request_id', id);
+
+    if (!allResults || allResults.length < (allTests || []).length) {
+      return errorResponse(res, 'All requested tests must have results before verification.', 400);
+    }
+
+    // No Draft results allowed
+    const draftResults = (allResults || []).filter(r => r.status === 'Draft');
+    if (draftResults.length > 0) {
+      return errorResponse(res, 'Cannot verify. Some results are still in Draft status. Complete them first.', 400);
+    }
+
+    // Check if any Completed results remain to verify
+    const completedResults = (allResults || []).filter(r => r.status === 'Completed');
+    if (completedResults.length === 0) {
+      return errorResponse(res, 'No completed results to verify. All results may already be verified.', 400);
+    }
+
+    // Transition Completed → Verified
+    const { error: updateError } = await supabase
+      .from('lab_results')
+      .update({
+        status: 'Verified',
+        verified_by: req.user.id,
+        verified_at: new Date().toISOString()
+      })
+      .eq('lab_request_id', id)
+      .eq('status', 'Completed');
+
+    if (updateError) {
+      console.error('[LAB] Verify results error:', updateError.message);
+      return errorResponse(res, 'Failed to verify lab results.', 500);
+    }
+
+    // Audit log
+    await supabase.from('audit_logs').insert({
+      user_id: req.user.id,
+      action: `VERIFY_LAB_RESULTS: ${id}`,
+      table_name: 'lab_results'
+    });
+
+    return successResponse(res, 'Lab results verified successfully.', { verified_count: completedResults.length });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getAllLabTests,
   getLabTestById,
@@ -803,5 +885,6 @@ module.exports = {
   cancelLabRequest,
   getLabResults,
   saveLabResults,
-  completeLabResults
+  completeLabResults,
+  verifyLabResults
 };

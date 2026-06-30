@@ -15,7 +15,8 @@ const {
   cancelLabRequest,
   getLabResults,
   saveLabResults,
-  completeLabResults
+  completeLabResults,
+  verifyLabResults
 } = require('../controllers/labController');
 
 const router = express.Router();
@@ -120,6 +121,13 @@ labQueueRouter.post('/requests/:id/results', roleMiddleware(['Laboratory Staff',
  * @access  Laboratory Staff, Admin
  */
 labQueueRouter.patch('/requests/:id/results/complete', roleMiddleware(['Laboratory Staff', 'Admin']), completeLabResults);
+
+/**
+ * @route   PATCH /api/lab/requests/:id/results/verify
+ * @desc    Verify completed lab results (transitions Completed → Verified)
+ * @access  Laboratory Staff, Admin
+ */
+labQueueRouter.patch('/requests/:id/results/verify', roleMiddleware(['Laboratory Staff', 'Admin']), verifyLabResults);
 
 module.exports = router;
 module.exports.labQueueRouter = labQueueRouter;

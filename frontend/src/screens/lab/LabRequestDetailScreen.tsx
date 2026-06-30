@@ -47,6 +47,7 @@ const statusTone = (status?: string) => {
   if (status === 'Pending') return colors.red;
   if (status === 'Processing') return colors.orange;
   if (status === 'Completed') return colors.green;
+  if (status === 'Verified') return colors.teal;
   return colors.muted;
 };
 
@@ -270,6 +271,17 @@ export default function LabRequestDetailScreen({ navigation, route }: any) {
               style={{ height: 52, borderRadius: 16, backgroundColor: colors.teal, alignItems: 'center', justifyContent: 'center' }}
             >
               <Text style={{ fontSize: 15, fontWeight: '800', color: '#fff' }}>Enter Results</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {item.status === 'Completed' ? (
+          <View style={{ marginTop: 20 }}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('LabResultEntry', { requestId, mode: 'verify' })}
+              style={{ height: 52, borderRadius: 16, backgroundColor: colors.teal, alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Text style={{ fontSize: 15, fontWeight: '800', color: '#fff' }}>Verify Results</Text>
             </TouchableOpacity>
           </View>
         ) : null}
