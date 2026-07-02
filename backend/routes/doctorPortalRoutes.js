@@ -18,6 +18,7 @@ const {
   getPatientConsultations,
   getPatientLabRequests,
   getPatientPrescriptions,
+  getPatientReleasedResults,
   getPatients,
   getPrescription,
   getProfile,
@@ -113,5 +114,6 @@ router.get('/appointments/:id/lab-request', getLabRequest);
 router.put('/appointments/:id/lab-request', saveLabRequest);
 router.post('/lab-requests/:id/submit', submitLabRequest);
 router.get('/patients/:patientId/lab-requests', getPatientLabRequests);
+router.get('/patients/:patientId/released-results', getPatientReleasedResults);
 
 module.exports = router;

@@ -787,6 +787,61 @@ const getPatientLabRequests = async (req, res, next) => {
   }
 };
 
+const getPatientReleasedResults = async (req, res, next) => {
+  try {
+    const doctor = await requireDoctor(req, res);
+    if (!doctor) return;
+
+    const { data: hasAccess } = await supabase
+      .from('appointments')
+      .select('id')
+      .eq('doctor_id', doctor.id)
+      .eq('patient_id', req.params.patientId)
+      .limit(1)
+      .maybeSingle();
+    if (!hasAccess) return errorResponse(res, 'Patient not assigned to this doctor.', 403);
+
+    const { data, error } = await supabase
+      .from('lab_results')
+      .select(`
+        id,
+        result_value,
+        unit,
+        reference_range,
+        abnormal_flag,
+        comments,
+        status,
+        created_at,
+        lab_request_test_id,
+        lab_request_tests:lab_request_test_id ( id, test_name, priority, clinical_notes ),
+        lab_requests:lab_request_id ( id, patient_id, doctor_id, notes )
+      `)
+      .eq('status', 'Released')
+      .eq('lab_requests.patient_id', req.params.patientId)
+      .order('created_at', { ascending: false });
+
+    if (error) return errorResponse(res, 'Failed to retrieve released results.', 500, error.message);
+
+    // Shape response to match expected frontend format
+    const shaped = (data || []).map((r) => ({
+      id: r.id,
+      test_name: r.lab_request_tests?.test_name || 'Unknown',
+      result: r.result_value,
+      status: r.status,
+      unit: r.unit,
+      reference_range: r.reference_range,
+      abnormal_flag: r.abnormal_flag,
+      comments: r.comments,
+      created_at: r.created_at,
+      lab_request_id: r.lab_request_id,
+    }));
+
+    return successResponse(res, 'Released results retrieved successfully', shaped);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getDashboard,
   getAppointments,
@@ -809,5 +864,6 @@ module.exports = {
   getLabRequest,
   saveLabRequest,
   submitLabRequest,
-  getPatientLabRequests
+  getPatientLabRequests,
+  getPatientReleasedResults
 };

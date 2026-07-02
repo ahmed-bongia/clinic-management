@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getLabRequest, startProcessing, cancelRequest, LabRequestDetail } from '../../services/labService';
+import { getLabRequest, getResults, startProcessing, cancelRequest, releaseResults, LabRequestDetail, LabResult } from '../../services/labService';
 import { Content, Screen, SectionHeader, colors } from '../../ui/ClinicComponents';
 
 const computeAge = (dob?: string) => {

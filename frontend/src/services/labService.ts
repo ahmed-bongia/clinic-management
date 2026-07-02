@@ -115,3 +115,6 @@ export const completeResults = async (requestId: string): Promise<{ all_tests_co
 
 export const verifyResults = async (requestId: string): Promise<{ verified_count: number }> =>
   unwrap(await api.patch(`/lab/requests/${requestId}/results/verify`));
+
+export const releaseResults = async (requestId: string): Promise<{ released_count: number }> =>
+  unwrap(await api.patch(`/lab/requests/${requestId}/results/release`));

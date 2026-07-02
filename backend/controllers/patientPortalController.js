@@ -91,15 +91,33 @@ const getDashboard = async (req, res, next) => {
         .order('appointment_date', { ascending: false })
         .limit(3),
       supabase
-        .from('lab_tests')
-        .select(labSelect)
-        .eq('patient_id', patient.id)
+        .from('lab_results')
+        .select(`
+          id,
+          result_value,
+          status,
+          created_at,
+          lab_request_test_id,
+          lab_request_tests:lab_request_test_id ( test_name ),
+          lab_requests:lab_request_id ( doctors:doctor_id ( name ) )
+        `)
+        .eq('status', 'Released')
+        .eq('lab_requests.patient_id', patient.id)
         .order('created_at', { ascending: false })
         .limit(3),
       supabase
-        .from('lab_tests')
-        .select(labSelect)
-        .eq('patient_id', patient.id)
+        .from('lab_results')
+        .select(`
+          id,
+          result_value,
+          status,
+          created_at,
+          lab_request_test_id,
+          lab_request_tests:lab_request_test_id ( test_name ),
+          lab_requests:lab_request_id ( doctors:doctor_id ( name ) )
+        `)
+        .eq('status', 'Released')
+        .eq('lab_requests.patient_id', patient.id)
         .order('created_at', { ascending: false })
         .limit(1)
     ]);
@@ -233,9 +251,22 @@ const getRecords = async (req, res, next) => {
         .eq('patient_id', patient.id)
         .order('appointment_date', { ascending: false }),
       supabase
-        .from('lab_tests')
-        .select(labSelect)
-        .eq('patient_id', patient.id)
+        .from('lab_results')
+        .select(`
+          id,
+          result_value,
+          unit,
+          reference_range,
+          abnormal_flag,
+          comments,
+          status,
+          created_at,
+          lab_request_test_id,
+          lab_request_tests:lab_request_test_id ( id, test_name, priority, clinical_notes ),
+          lab_requests:lab_request_id ( id, patient_id, doctor_id, doctors:doctor_id ( id, name, specialization ) )
+        `)
+        .eq('status', 'Released')
+        .eq('lab_requests.patient_id', patient.id)
         .order('created_at', { ascending: false })
     ]);
 
@@ -287,14 +318,44 @@ const getLabResults = async (req, res, next) => {
     const patient = await requirePatient(req, res);
     if (!patient) return;
 
+    // Return only Released lab_results from the new workflow
     const { data, error } = await supabase
-      .from('lab_tests')
-      .select(labSelect)
-      .eq('patient_id', patient.id)
+      .from('lab_results')
+      .select(`
+        id,
+        result_value,
+        unit,
+        reference_range,
+        abnormal_flag,
+        comments,
+        status,
+        created_at,
+        lab_request_test_id,
+        lab_request_tests:lab_request_test_id ( id, test_name, priority, clinical_notes ),
+        lab_requests:lab_request_id ( id, patient_id, doctor_id, doctors:doctor_id ( id, name, specialization ) )
+      `)
+      .eq('status', 'Released')
+      .eq('lab_requests.patient_id', patient.id)
       .order('created_at', { ascending: false });
 
     if (error) return errorResponse(res, 'Failed to retrieve lab results.', 500, error.message);
-    return successResponse(res, 'Patient lab results retrieved successfully', data || []);
+
+    // Shape to match frontend expectations
+    const shaped = (data || []).map((r) => ({
+      id: r.id,
+      test_name: r.lab_request_tests?.test_name || 'Unknown',
+      result: r.result_value,
+      status: r.status,
+      unit: r.unit,
+      reference_range: r.reference_range,
+      abnormal_flag: r.abnormal_flag,
+      comments: r.comments,
+      created_at: r.created_at,
+      doctors: r.lab_requests?.doctors || null,
+      lab_request_id: r.lab_request_id,
+    }));
+
+    return successResponse(res, 'Patient lab results retrieved successfully', shaped);
   } catch (error) {
     next(error);
   }

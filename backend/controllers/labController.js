@@ -872,6 +872,86 @@ const verifyLabResults = async (req, res, next) => {
   }
 };
 
+/**
+ * PATCH /api/lab/requests/:id/results/release
+ * Release verified results so they become visible to doctors and patients.
+ * Only transitions Verified → Released; leaves lab_request.status as 'Completed'
+ * (Released is not valid for lab_requests CHECK constraint).
+ */
+const releaseLabResults = async (req, res, next) => {
+  try {
+    if (!supabase) return errorResponse(res, 'Database is not configured.', 503);
+
+    const { id } = req.params;
+
+    const { data: labRequest, error: fetchError } = await supabase
+      .from('lab_requests')
+      .select('id, status')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !labRequest) {
+      return errorResponse(res, 'Lab request not found.', 404);
+    }
+
+    if (labRequest.status !== 'Completed') {
+      return errorResponse(res, 'Only completed lab requests can have results released.', 400);
+    }
+
+    // Check all results are Verified (no Draft, no Completed)
+    const { data: allResults } = await supabase
+      .from('lab_results')
+      .select('id, status')
+      .eq('lab_request_id', id);
+
+    if (!allResults || allResults.length === 0) {
+      return errorResponse(res, 'No results found for this lab request.', 400);
+    }
+
+    const draftResults = allResults.filter(r => r.status === 'Draft');
+    if (draftResults.length > 0) {
+      return errorResponse(res, 'Cannot release. Some results are still in Draft status.', 400);
+    }
+
+    const completedResults = allResults.filter(r => r.status === 'Completed');
+    if (completedResults.length > 0) {
+      return errorResponse(res, 'Cannot release. Some results have not been verified yet.', 400);
+    }
+
+    const verifiedResults = allResults.filter(r => r.status === 'Verified');
+    if (verifiedResults.length === 0) {
+      return errorResponse(res, 'No verified results to release. All results may already be released.', 400);
+    }
+
+    // Transition Verified → Released
+    const { error: updateError } = await supabase
+      .from('lab_results')
+      .update({
+        status: 'Released',
+        released_by: req.user.id,
+        released_at: new Date().toISOString()
+      })
+      .eq('lab_request_id', id)
+      .eq('status', 'Verified');
+
+    if (updateError) {
+      console.error('[LAB] Release results error:', updateError.message);
+      return errorResponse(res, 'Failed to release lab results.', 500);
+    }
+
+    // Audit log
+    await supabase.from('audit_logs').insert({
+      user_id: req.user.id,
+      action: `RELEASE_LAB_RESULTS: ${id}`,
+      table_name: 'lab_results'
+    });
+
+    return successResponse(res, 'Lab results released successfully.', { released_count: verifiedResults.length });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getAllLabTests,
   getLabTestById,
@@ -886,5 +966,6 @@ module.exports = {
   getLabResults,
   saveLabResults,
   completeLabResults,
-  verifyLabResults
+  verifyLabResults,
+  releaseLabResults
 };
