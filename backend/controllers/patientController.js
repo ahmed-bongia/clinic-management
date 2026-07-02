@@ -1,6 +1,7 @@
 // Shared patient directory CRUD. Patient callers are restricted to their own linked profile.
 const { successResponse, errorResponse } = require('../utils/response');
 const { supabase } = require('../config/supabase');
+const { parsePagination, setPaginationHeaders } = require('../utils/pagination');
 
 const PATIENT_DEMOGRAPHIC_FIELDS = [
   'name',
@@ -66,9 +67,11 @@ const getAllPatients = async (req, res, next) => {
       return errorResponse(res, 'Database is not configured.', 503);
     }
 
+    // Opt-in pagination: only counts/ranges when the client asks with ?page= or ?limit=.
+    const pagination = parsePagination(req.query);
     let query = supabase
       .from('patients')
-      .select('*')
+      .select('*', pagination.enabled ? { count: 'exact' } : undefined)
       .order('created_at', { ascending: false });
 
     // Optional filters
@@ -87,11 +90,20 @@ const getAllPatients = async (req, res, next) => {
       query = query.eq('user_id', req.user.id);
     }
 
-    const { data, error } = await query;
+    if (pagination.enabled) {
+      query = query.range(pagination.from, pagination.to);
+    }
+
+    const { data, error, count } = await query;
 
     if (error) {
       console.error('[PATIENTS] Fetch error:', error.message);
       return errorResponse(res, 'Failed to retrieve patients.', 500);
+    }
+
+    // The response body stays a plain array for backward compatibility; paging info rides in headers.
+    if (pagination.enabled) {
+      setPaginationHeaders(res, { total: count, page: pagination.page, limit: pagination.limit });
     }
 
     return successResponse(res, 'Patients retrieved successfully', data);

@@ -1,7 +1,7 @@
 // Public account entry points plus authenticated self-service profile/password endpoints.
 const express = require('express');
 const { body } = require('express-validator');
-const { login, register, getCurrentUser, changePassword } = require('../controllers/authController');
+const { login, register, getCurrentUser, changePassword, forgotPassword } = require('../controllers/authController');
 const authMiddleware = require('../middleware/authMiddleware');
 const validationMiddleware = require('../middleware/validationMiddleware');
 
@@ -38,6 +38,18 @@ router.post(
   ],
   validationMiddleware,
   register
+);
+
+/**
+ * @route POST /api/auth/forgot-password
+ * @desc Request a password reset (neutral response, no user enumeration)
+ * @access Public
+ */
+router.post(
+  '/forgot-password',
+  [body('email').isEmail().withMessage('Please enter a valid email address')],
+  validationMiddleware,
+  forgotPassword
 );
 
 /**

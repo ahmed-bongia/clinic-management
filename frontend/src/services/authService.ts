@@ -147,6 +147,26 @@ export const changePassword = async (payload: {
   }
 };
 
+// Requests a password reset. The backend always replies neutrally (it never reveals whether the
+// email has an account), so this resolves successfully as long as the request reaches the server.
+export const requestPasswordReset = async (
+  email: string
+): Promise<{ success: boolean; message: string }> => {
+  try {
+    const response = await api.post('/auth/forgot-password', { email });
+    return {
+      success: Boolean(response.data.success),
+      message: response.data.message || 'If an account exists, a password reset has been requested.',
+    };
+  } catch (error: any) {
+    console.error('[Auth Service] Forgot password error:', error.response?.data || error.message);
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Unable to request a password reset right now.',
+    };
+  }
+};
+
 /**
  * Gets the token
  */

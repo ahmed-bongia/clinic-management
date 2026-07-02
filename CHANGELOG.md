@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-07-02 — Sprint 5 hardening, tests, and hosting docs
+
+- Objective: Close known pending items — password recovery, pagination, global rate limiting, dead-code
+  cleanup — and add the project's first automated test suite plus a complete hosting guide.
+- Reason: Make the project verifiable and deployable by a new maintainer without live guesswork.
+- Files added: `backend/utils/pagination.js`, `backend/tests/*` (node:test suite + helpers),
+  `frontend/src/screens/auth/ForgotPasswordScreen.tsx`, `HOSTING.md`.
+- Files modified: `backend/server.js` (general rate limiter over all `/api`), `backend/controllers/authController.js`
+  and `backend/routes/authRoutes.js` (neutral, non-enumerating `POST /api/auth/forgot-password`),
+  `backend/controllers/patientController.js` (opt-in pagination on the patients list), backend & frontend
+  `package.json` (`test`/`syntax`/`typecheck` scripts), `frontend/src/services/authService.ts`,
+  `frontend/src/screens/auth/LoginScreen.tsx` and `frontend/src/navigation/AppNavigator.tsx`
+  (wired the Forgot Password control), `README.md`.
+- Files removed: `frontend/src/screens/laboratory/` (dead duplicate of the active `screens/lab/` module).
+- Backend changes: New `POST /api/auth/forgot-password` records a reset request and always returns an
+  identical message, so it never reveals which emails have accounts. `GET /api/patients` now supports
+  optional `?page=`/`?limit=` pagination via `.range()`, returning paging info in `X-Total-*`/`X-Page-*`
+  headers while keeping the JSON body a plain array (backward compatible). A general in-memory rate
+  limiter (default 300/15 min per IP) now guards the whole API in addition to the stricter auth limiter.
+- Bug fixed: The README demo credentials were wrong (listed emails that don't exist in the seed and the
+  password `Pass123`); the seed hash is for **`password123`**. Corrected the README table to match
+  `seed.sql` and removed the false "one-tap badge"/local-auth-fallback claims. This previously blocked
+  first-time login for anyone hosting the app.
+- Testing performed: `npm test` (25 pass, 0 fail — response/jwt/role/rate-limit/auth/pagination units),
+  `npm run syntax` (backend), `npm run typecheck` (frontend, 0 errors), and a live server smoke test of
+  the health, auth, forgot-password (200 neutral + 400 validation), and rate-limit (401→429) paths.
+
 ## 2026-06-26 — Sprint 4.5 laboratory request management
 
 - Objective: Implement a complete Laboratory Request Management workflow attached to existing consultations.

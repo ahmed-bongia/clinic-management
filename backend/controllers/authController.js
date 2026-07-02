@@ -298,9 +298,53 @@ const changePassword = async (req, res, next) => {
   }
 };
 
+/**
+ * POST /api/auth/forgot-password
+ * Record a password-reset request. The response is intentionally identical whether or not the
+ * email exists, so the endpoint never reveals which addresses have accounts (no user enumeration).
+ * Email/SMS delivery of a reset link is a follow-up integration; for now an administrator fulfils
+ * the request from the audit trail. See HOSTING.md for wiring a mail provider.
+ */
+const NEUTRAL_RESET_MESSAGE =
+  'If an account exists for that email, a password reset has been requested. Please contact your clinic administrator to complete it.';
+
+const forgotPassword = async (req, res, next) => {
+  try {
+    const email = typeof req.body.email === 'string' ? req.body.email.toLowerCase().trim() : '';
+
+    // Fail closed on configuration, but still avoid leaking whether the address exists.
+    if (!supabase) {
+      return successResponse(res, NEUTRAL_RESET_MESSAGE);
+    }
+
+    const { data: user } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    // Only record an audit entry when the account actually exists; the caller cannot tell either way.
+    if (user) {
+      await supabase.from('audit_logs').insert({
+        user_id: user.id,
+        action: 'PASSWORD_RESET_REQUESTED',
+        table_name: 'users'
+      }).then(() => {}).catch((err) => console.error('[AUTH] Reset-request log failed:', err.message));
+    }
+
+    return successResponse(res, NEUTRAL_RESET_MESSAGE);
+  } catch (error) {
+    // Even on error, keep the response neutral so failures do not leak account existence.
+    console.error('[AUTH] Forgot-password exception:', error.message);
+    return successResponse(res, NEUTRAL_RESET_MESSAGE);
+  }
+};
+
 module.exports = {
   login,
   register,
   getCurrentUser,
-  changePassword
+  changePassword,
+  forgotPassword
 };

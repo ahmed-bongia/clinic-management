@@ -32,6 +32,9 @@ Clinic-management-system/
 
 ## ⚡ Setup & Launch Instructions
 
+> 📖 **For full, step-by-step hosting instructions** (Supabase setup, backend deploy, running the app on
+> a phone, and troubleshooting) see **[HOSTING.md](HOSTING.md)**. The quick version follows.
+
 Ensure you have [Node.js (v18+)](https://nodejs.org/) installed on your machine.
 
 ### 1. Backend Server Setup
@@ -77,18 +80,24 @@ npx expo start
 
 ---
 
-## 🔑 Demo Account Credentials (One-Tap Fill)
+## 🔑 Demo Account Credentials
 
-The login screen features interactive badges to pre-populate these credentials. If Supabase is unconfigured, the system automatically authenticates local sessions to facilitate instant demo reviews.
+These accounts are created by `backend/config/seed.sql`. They only work after the database has been
+configured and both `schema.sql` and `seed.sql` have been run (see [HOSTING.md](HOSTING.md)). Type the
+email and password manually on the login screen.
 
-| Role | Email | Password | Logged-in Name | Dashboard Flow |
-|---|---|---|---|---|
-| **Admin** | `admin@medicore.com` | `Pass123` | Chief Administrator | Admin Control Panel |
-| **Doctor** | `doctor@medicore.com` | `Pass123` | Dr. Sarah Jenkins | Doctor Dashboard |
-| **Patient** | `patient@medicore.com` | `Pass123` | Jane Mary Doe | Patient Portal |
-| **Receptionist** | `receptionist@medicore.com` | `Pass123` | Alice Smith | Reception Panel |
-| **Pharmacist** | `pharmacist@medicore.com` | `Pass123` | John Doe | Pharmacy Panel |
-| **Laboratory Staff** | `labstaff@medicore.com` | `Pass123` | Robert Johnson | Laboratory Panel |
+> **All seeded accounts share the password `password123`.**
+
+| Role | Email | Logged-in Name | Dashboard Flow |
+|---|---|---|---|
+| **Admin** | `admin@medicore.com` | System Admin | Admin Control Panel |
+| **Doctor** | `sarah.chen@medicore.com` | Dr. Sarah Chen | Doctor Dashboard |
+| **Doctor** | `james.wilson@medicore.com` | Dr. James Wilson | Doctor Dashboard |
+| **Receptionist** | `reception@medicore.com` | Maria Garcia | Reception Panel |
+| **Pharmacist** | `pharmacist@medicore.com` | David Kim | Pharmacy Panel |
+| **Laboratory Staff** | `lab@medicore.com` | Lisa Patel | Laboratory Panel |
+| **Patient** | `john.doe@email.com` | John Doe | Patient Portal |
+| **Patient** | `jane.smith@email.com` | Jane Smith | Patient Portal |
 
 ---
 

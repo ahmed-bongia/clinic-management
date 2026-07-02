@@ -48,8 +48,26 @@ The schema defines users, patients, doctors, doctor schedules, appointments, inv
 5. The token was stored in AsyncStorage. It now uses Expo SecureStore and existing sessions are validated on app launch.
 6. README contained outdated plaintext demo credentials and claimed an unconfigured database had a demo fallback. Documentation now reflects actual behavior.
 
+## Sprint 5 updates (2026-07-02)
+
+- **Automated tests added.** A `node:test` unit suite covers the response envelope, JWT policy, role and
+  auth middleware, the rate limiter, and pagination (25 tests, all passing via `npm test`).
+- **Password recovery wired.** `POST /api/auth/forgot-password` and a `ForgotPasswordScreen` replace the
+  dead placeholder. The endpoint is rate-limited and non-enumerating (identical response regardless of
+  whether the email exists); it records the request for an administrator. Email delivery is the remaining
+  follow-up.
+- **Global rate limiting added.** A general limiter now guards all `/api` traffic on top of the stricter
+  auth limiter.
+- **Pagination added** (opt-in) to `GET /api/patients` via `?page`/`?limit`, with paging metadata in
+  response headers and no change to the existing array body.
+- **Dead code removed.** The unused `frontend/src/screens/laboratory/` duplicate was deleted.
+- **Credential bug fixed.** README demo credentials now match `seed.sql` (password is `password123`).
+
 ## Remaining limitations / future enhancements
 
-- A configured Supabase test environment is needed to execute full live CRUD and database-constraint tests for every role.
-- Add automated API/mobile end-to-end coverage, rate limiting, password recovery, and complete pagination.
-- The login screen’s password-recovery control remains a non-functional UI placeholder and should be hidden or wired before public release.
+- A configured Supabase test environment is still needed for full live CRUD and DB-constraint tests per role.
+- Password-reset **email/SMS delivery** is not yet wired (requests are recorded for an admin to fulfil).
+- Pagination is implemented on the patients list as the reference pattern; extend it to the remaining
+  list endpoints (appointments, invoices, medicines, lab queue) as needed.
+- The in-memory rate limiter is per-instance; use a shared store (e.g. Redis) for multi-instance deploys.
+- Add end-to-end (API + mobile) coverage on top of the new unit suite.

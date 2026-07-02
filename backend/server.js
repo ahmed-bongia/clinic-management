@@ -34,6 +34,12 @@ const authRateLimiter = createRateLimiter({
   windowMs: Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
   max: Number(process.env.AUTH_RATE_LIMIT_MAX) || 10
 });
+// Broad safety-net limiter for every /api request so no single client can flood the whole API.
+// It is deliberately looser than the auth limiter, which stays the primary brute-force defence.
+const generalRateLimiter = createRateLimiter({
+  windowMs: Number(process.env.GENERAL_RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+  max: Number(process.env.GENERAL_RATE_LIMIT_MAX) || 300
+});
 
 // Apply security, request logging, and JSON parsing to every endpoint before route handling.
 app.disable('x-powered-by');
@@ -82,9 +88,11 @@ app.get('/api', (req, res) => {
 });
 
 // Each route module owns one resource or role-specific portal. Individual modules add their own authorization gates.
-// Authentication entry points are rate-limited separately from authenticated profile requests.
+// A general limiter guards the whole API; authentication entry points get a stricter limiter on top.
+app.use('/api', generalRateLimiter);
 app.use('/api/auth/login', authRateLimiter);
 app.use('/api/auth/register', authRateLimiter);
+app.use('/api/auth/forgot-password', authRateLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/users', userRoutes);
